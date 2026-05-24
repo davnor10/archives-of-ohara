@@ -1,0 +1,641 @@
+import { useEffect, useRef, useState, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import type { SubtitleFile, MediaStream } from '../../../preload/index.d'
+import { useStore } from '../store'
+
+interface PlayerState {
+  path: string
+  title: string
+  year?: number
+  isEpisode?: boolean
+  durationSeconds?: number
+}
+
+interface VttCue {
+  start: number
+  end: number
+  text: string
+}
+
+const PRESET_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const HIDE_DELAY = 3000
+
+function formatTime(sec: number): string {
+  if (!isFinite(sec) || isNaN(sec)) return '0:00'
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = Math.floor(sec % 60)
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function mediaUrl(filePath: string, audioIdx = 0, startSec = 0): string {
+  if (!filePath) return ''
+  const params = new URLSearchParams({ path: filePath, audioIdx: String(audioIdx) })
+  if (startSec > 0) params.set('startSec', String(startSec))
+  return `media://local/?${params.toString()}`
+}
+
+function parseVttTime(raw: string): number {
+  const s = raw.split(' ')[0] // strip cue settings
+  const parts = s.split(':')
+  if (parts.length === 3) return +parts[0] * 3600 + +parts[1] * 60 + parseFloat(parts[2])
+  return +parts[0] * 60 + parseFloat(parts[1])
+}
+
+function parseVttCues(vtt: string): VttCue[] {
+  const cues: VttCue[] = []
+  const blocks = vtt.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split(/\n\n+/)
+  for (const block of blocks) {
+    const lines = block.trim().split('\n')
+    const arrowIdx = lines.findIndex(l => l.includes('-->'))
+    if (arrowIdx < 0) continue
+    const [rawStart, rawEnd] = lines[arrowIdx].split('-->')
+    const text = lines
+      .slice(arrowIdx + 1)
+      .join('\n')
+      .replace(/<[^>]+>/g, '') // strip VTT tags
+      .trim()
+    if (text) cues.push({ start: parseVttTime(rawStart.trim()), end: parseVttTime(rawEnd.trim()), text })
+  }
+  return cues
+}
+
+export default function PlayerScreen() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const state = location.state as PlayerState | null
+  const { path, title, isEpisode, durationSeconds } = state ?? { path: '', title: '' }
+  const { settings } = useStore()
+
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const frameCanvasRef = useRef<HTMLCanvasElement>(null)
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const [playing, setPlaying] = useState(false)
+  const [played, setPlayed] = useState(0)
+  const [duration, setDuration] = useState(durationSeconds ?? 0)
+  const [volume, setVolume] = useState(0.8)
+  const [muted, setMuted] = useState(false)
+  const [speed, setSpeed] = useState(1)
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false)
+  const [customSpeedInput, setCustomSpeedInput] = useState('')
+  const [fullscreen, setFullscreen] = useState(false)
+  const [controlsVisible, setControlsVisible] = useState(true)
+
+  const [bookmark, setBookmark] = useState<number | null>(null)
+  const [showResumePrompt, setShowResumePrompt] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
+
+  const [subtitles, setSubtitles] = useState<SubtitleFile[]>([])
+  const [activeSubIdx, setActiveSubIdx] = useState(-1) // -1 = off
+  const [showSubMenu, setShowSubMenu] = useState(false)
+  const [activeCues, setActiveCues] = useState<VttCue[]>([])
+  const [currentCueText, setCurrentCueText] = useState<string | null>(null)
+
+  const [audioStreams, setAudioStreams] = useState<MediaStream[]>([])
+  const [activeAudioIdx, setActiveAudioIdx] = useState(0)
+  const [showAudioMenu, setShowAudioMenu] = useState(false)
+
+  const [videoError, setVideoError] = useState<string | null>(null)
+  const [isTranscoded, setIsTranscoded] = useState(false)
+  const [seekOffset, setSeekOffset] = useState(0)
+  const [showFrozenFrame, setShowFrozenFrame] = useState(false)
+  const endedRef = useRef(false)
+  const seekingRef = useRef(false)
+
+  const src = mediaUrl(path, activeAudioIdx, isTranscoded ? seekOffset : 0)
+
+  // ── Sync play/pause/volume/speed to the video element ─────────────────────
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || !src || !hasStarted) return
+    if (playing && !showResumePrompt) {
+      video.play().catch(console.error)
+    } else {
+      video.pause()
+    }
+  }, [playing, showResumePrompt])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.volume = volume
+    video.muted = muted
+  }, [volume, muted])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.playbackRate = speed
+  }, [speed])
+
+  // ── Load bookmark ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!path) return
+    window.api.getBookmark(path).then((bm) => {
+      if (bm && bm.timestamp_seconds > 5) {
+        setBookmark(bm.timestamp_seconds)
+        setShowResumePrompt(true)
+      }
+    })
+  }, [path])
+
+  // ── Probe duration + transcode flag on load ────────────────────────────────
+  useEffect(() => {
+    if (!path) return
+    endedRef.current = false
+    seekingRef.current = false
+    setSeekOffset(0)
+    window.api.getDuration(path).then((dur) => { if (dur > 0) setDuration(dur) })
+    window.api.needsTranscode(path, 0).then(setIsTranscoded)
+  }, [path])
+
+  // ── Load streams (audio tracks + subtitle tracks) ──────────────────────────
+  useEffect(() => {
+    if (!path) return
+    window.api.getStreams(path).then((streams) => {
+      setAudioStreams(streams.filter((s) => s.codecType === 'audio'))
+    })
+    window.api.getSubtitles(path).then((subs) => {
+      setSubtitles(subs)
+    })
+  }, [path])
+
+  // ── Parse VTT cues when active subtitle changes ────────────────────────────
+  useEffect(() => {
+    if (activeSubIdx === -1) {
+      setActiveCues([])
+      setCurrentCueText(null)
+      return
+    }
+    const sub = subtitles[activeSubIdx]
+    setActiveCues(sub?.vttContent ? parseVttCues(sub.vttContent) : [])
+    setCurrentCueText(null)
+  }, [activeSubIdx, subtitles])
+
+  // ── Embedded subtitle: extract and inject on first activation ──────────────
+  const activateEmbeddedSub = useCallback(async (subIdx: number) => {
+    const sub = subtitles[subIdx]
+    if (!sub || sub.streamIndex == null) return
+    if (sub.vttContent) {
+      setActiveSubIdx(subIdx)
+      return
+    }
+    const vtt = await window.api.extractSubtitle(path, sub.streamIndex)
+    if (!vtt) return
+    setSubtitles((prev) => {
+      const copy = [...prev]
+      copy[subIdx] = { ...copy[subIdx], vttContent: vtt }
+      return copy
+    })
+    setActiveSubIdx(subIdx)
+  }, [subtitles, path])
+
+  // ── Auto-save bookmark every 10s ──────────────────────────────────────────
+  useEffect(() => {
+    if (!path) return
+    const interval = setInterval(() => {
+      if (playing && duration > 0) {
+        const sec = seekOffset + (videoRef.current?.currentTime ?? played * duration)
+        if (sec > 5) window.api.saveBookmark(path, sec)
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [playing, played, duration, path])
+
+  // Save bookmark on unmount
+  useEffect(() => {
+    return () => {
+      if (path && duration > 0 && played > 0) {
+        const sec = played * duration
+        if (sec > 5) window.api.saveBookmark(path, sec)
+      }
+    }
+  }, [])
+
+  // ── Controls visibility ────────────────────────────────────────────────────
+  const showControls = useCallback(() => {
+    setControlsVisible(true)
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    hideTimerRef.current = setTimeout(() => {
+      if (playing) setControlsVisible(false)
+    }, HIDE_DELAY)
+  }, [playing])
+
+  useEffect(() => {
+    if (!playing) {
+      setControlsVisible(true)
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+    } else {
+      hideTimerRef.current = setTimeout(() => setControlsVisible(false), HIDE_DELAY)
+    }
+    return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
+  }, [playing])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen()
+      setFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setFullscreen(false)
+    }
+  }
+
+  const seekTo = useCallback((targetSec: number) => {
+    const clamped = Math.max(0, Math.min(duration, targetSec))
+    if (duration > 0) setPlayed(clamped / duration)
+    if (isTranscoded) {
+      // Capture current frame before the stream restarts so the screen doesn't go black
+      const video = videoRef.current
+      const canvas = frameCanvasRef.current
+      if (video && canvas && video.videoWidth > 0 && video.readyState >= 2) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        try {
+          canvas.getContext('2d')?.drawImage(video, 0, 0)
+          setShowFrozenFrame(true)
+        } catch { /* cross-origin restriction — skip freeze */ }
+      }
+      seekingRef.current = true
+      setSeekOffset(Math.floor(clamped))
+    } else {
+      if (videoRef.current) videoRef.current.currentTime = clamped
+    }
+  }, [duration, isTranscoded])
+
+  const skip = useCallback((delta: number) => {
+    const currentAbs = isTranscoded
+      ? seekOffset + (videoRef.current?.currentTime ?? 0)
+      : (videoRef.current?.currentTime ?? 0)
+    seekTo(currentAbs + delta)
+  }, [isTranscoded, seekOffset, seekTo])
+
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (showResumePrompt) return
+      switch (e.code) {
+        case 'Space': e.preventDefault(); setPlaying((p) => !p); break
+        case 'ArrowRight':
+          e.preventDefault()
+          skip(10)
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          skip(-10)
+          break
+        case 'KeyF': toggleFullscreen(); break
+        case 'KeyM': setMuted((m) => !m); break
+        case 'Escape':
+          if (document.fullscreenElement) document.exitFullscreen()
+          else navigate(-1)
+          break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showResumePrompt, skip])
+
+  const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    seekTo(frac * duration)
+  }
+
+  const handleResumeYes = () => {
+    if (bookmark !== null) seekTo(bookmark)
+    setShowResumePrompt(false)
+    setPlaying(true)
+    setHasStarted(true)
+  }
+  const handleResumeNo = () => {
+    setShowResumePrompt(false)
+    setPlaying(true)
+    setHasStarted(true)
+    setBookmark(null)
+  }
+
+  const handleEnded = () => {
+    endedRef.current = true
+    setPlaying(false)
+    if (path) window.api.deleteBookmark(path)
+    if (isEpisode && path) window.api.markWatched(path, true)
+  }
+
+  const selectSubtitle = (idx: number) => {
+    setShowSubMenu(false)
+    if (subtitles[idx]?.streamIndex != null) {
+      activateEmbeddedSub(idx)
+    } else {
+      setActiveSubIdx(idx)
+    }
+  }
+
+  const selectAudio = (idx: number) => {
+    setShowAudioMenu(false)
+    if (idx === activeAudioIdx) return
+    const actualSec = seekOffset + (videoRef.current?.currentTime ?? 0)
+    setHasStarted(false)
+    setPlaying(false)
+    seekingRef.current = true
+    setSeekOffset(Math.floor(actualSec))
+    setActiveAudioIdx(idx)
+    window.api.needsTranscode(path, idx).then(setIsTranscoded)
+  }
+
+  if (!path) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-dim)' }}>
+        No media selected.
+      </div>
+    )
+  }
+
+  const bookmarkFrac = bookmark != null && duration > 0 ? bookmark / duration : null
+  const activeSubLabel = activeSubIdx === -1 ? 'CC' : (subtitles[activeSubIdx]?.label ?? 'CC')
+  const activeAudioLabel = audioStreams[activeAudioIdx]?.lang?.toUpperCase() ?? 'Audio'
+
+  return (
+    <div
+      className="player-screen"
+      ref={containerRef}
+      onMouseMove={showControls}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('.player-controls')) return
+        if ((e.target as HTMLElement).closest('.player-back-btn')) return
+        if ((e.target as HTMLElement).closest('.resume-prompt')) return
+        if (showSubMenu || showAudioMenu) { setShowSubMenu(false); setShowAudioMenu(false); return }
+        setPlaying((p) => !p)
+      }}
+    >
+      <div className={`player-video-wrap ${controlsVisible ? 'controls-visible' : ''}`}>
+        <video
+          ref={videoRef}
+          src={src || undefined}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
+          onCanPlay={(e) => {
+            setVideoError(null)
+            setShowFrozenFrame(false)
+            const isSeeking = seekingRef.current
+            if (hasStarted && !isSeeking) return
+            seekingRef.current = false
+            const firstLoad = !hasStarted
+            if (firstLoad) setHasStarted(true)
+            if (!showResumePrompt && (firstLoad || playing)) {
+              e.currentTarget.play().catch(console.error)
+              if (firstLoad) setPlaying(true)
+            }
+          }}
+          onError={(e) => {
+            const el = e.currentTarget
+            const code = el.error?.code ?? 0
+            if (code === 1) return
+            if (code === 2 && (endedRef.current || seekingRef.current)) return
+            seekingRef.current = false
+            setShowFrozenFrame(false)
+            const msg = el.error?.message ?? 'unknown'
+            const labels: Record<number, string> = { 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED' }
+            setVideoError(`${labels[code] ?? `Error ${code}`}: ${msg}`)
+          }}
+          onTimeUpdate={(e) => {
+            const t = seekOffset + e.currentTarget.currentTime
+            if (duration > 0) setPlayed(t / duration)
+            if (activeCues.length > 0) {
+              const cue = activeCues.find(c => t >= c.start && t < c.end) ?? null
+              const text = cue?.text ?? null
+              setCurrentCueText(prev => prev !== text ? text : prev)
+            } else if (currentCueText !== null) {
+              setCurrentCueText(null)
+            }
+          }}
+          onDurationChange={(e) => {
+            const d = e.currentTarget.duration
+            if (isFinite(d) && d > 0) setDuration((prev) => (prev > 0 ? prev : d))
+          }}
+          onEnded={handleEnded}
+        />
+
+        {/* Frozen frame shown during transcoded seek */}
+        <canvas
+          ref={frameCanvasRef}
+          style={{
+            display: showFrozenFrame ? 'block' : 'none',
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            background: '#000',
+            zIndex: 5,
+          }}
+        />
+
+        {/* Subtitle overlay */}
+        {currentCueText && !showFrozenFrame && (
+          <div
+            className="subtitle-overlay"
+            style={{
+              fontSize: settings.subtitle_size === 'small' ? 16 : settings.subtitle_size === 'large' ? 30 : 22,
+              color: settings.subtitle_color ?? '#ffffff',
+              background: settings.subtitle_bg ? 'rgba(0,0,0,0.7)' : undefined,
+              padding: settings.subtitle_bg ? '2px 12px' : undefined,
+              borderRadius: settings.subtitle_bg ? 4 : undefined,
+            }}
+          >
+            {currentCueText}
+          </div>
+        )}
+
+        {videoError && (
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'rgba(180,20,20,0.92)', color: '#fff', padding: '20px 28px', borderRadius: 8, zIndex: 20, maxWidth: '80%', textAlign: 'center', fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Video Error</div>
+            {videoError}
+          </div>
+        )}
+
+        <button
+          className="player-back-btn"
+          style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s' }}
+          onClick={(e) => { e.stopPropagation(); navigate(-1) }}
+        >
+          ← Back
+        </button>
+
+        {showResumePrompt && (
+          <div className="resume-prompt" onClick={(e) => e.stopPropagation()}>
+            <h3>Resume Voyage?</h3>
+            <p>Continue from {formatTime(bookmark ?? 0)}?</p>
+            <div className="resume-actions">
+              <button className="btn btn-ghost" onClick={handleResumeNo}>Start Over</button>
+              <button className="btn btn-primary" onClick={handleResumeYes}>▶ Resume</button>
+            </div>
+          </div>
+        )}
+
+        <div
+          className={`player-controls ${controlsVisible ? '' : 'hidden'}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="seek-bar-wrap" onClick={handleSeekClick}>
+            <div className="seek-bar-track">
+              <div className="seek-bar-fill" style={{ width: `${played * 100}%` }} />
+              {bookmarkFrac != null && (
+                <div className="seek-bookmark-marker" style={{ left: `${bookmarkFrac * 100}%` }} />
+              )}
+            </div>
+          </div>
+
+          <div className="player-row">
+            <button className="player-btn" onClick={() => setPlaying((p) => !p)}>
+              {playing ? '⏸' : '▶'}
+            </button>
+            <button className="player-btn" style={{ fontSize: 16 }} onClick={() => skip(-10)}>⏪</button>
+            <button className="player-btn" style={{ fontSize: 16 }} onClick={() => skip(10)}>⏩</button>
+
+            <span className="player-time">
+              {formatTime(played * duration)} / {formatTime(duration)}
+            </span>
+
+            <div className="player-title">{title}</div>
+
+            <div className="volume-wrap">
+              <button className="player-btn" style={{ fontSize: 16 }} onClick={() => setMuted((m) => !m)}>
+                {muted ? '🔇' : volume > 0.5 ? '🔊' : '🔉'}
+              </button>
+              <input
+                type="range" className="volume-slider"
+                min={0} max={1} step={0.02}
+                value={muted ? 0 : volume}
+                onChange={(e) => { setVolume(parseFloat(e.target.value)); setMuted(false) }}
+              />
+            </div>
+
+            <div className="player-menu-wrap" style={{ position: 'relative' }}>
+              <button
+                className="speed-btn"
+                onClick={() => { setShowSpeedMenu((v) => !v); setShowSubMenu(false); setShowAudioMenu(false) }}
+              >
+                {Number.isInteger(speed) ? speed : parseFloat(speed.toFixed(2))}×
+              </button>
+              {showSpeedMenu && (
+                <div className="player-track-menu" style={{ minWidth: 110 }}>
+                  {PRESET_SPEEDS.map((s) => (
+                    <button
+                      key={s}
+                      className={`track-menu-item ${speed === s ? 'active' : ''}`}
+                      onClick={() => { setSpeed(s); setShowSpeedMenu(false); setCustomSpeedInput('') }}
+                    >
+                      {s}×
+                    </button>
+                  ))}
+                  <div style={{ padding: '6px 10px', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 4, alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min={0.1}
+                      max={10}
+                      step={0.1}
+                      placeholder="custom"
+                      value={customSpeedInput}
+                      onChange={(e) => setCustomSpeedInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const v = parseFloat(customSpeedInput)
+                          if (v >= 0.1 && v <= 10) { setSpeed(v); setShowSpeedMenu(false) }
+                        }
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ width: 60, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 3, color: '#fff', fontSize: 12, padding: '3px 6px', outline: 'none' }}
+                    />
+                    <button
+                      className="track-menu-item"
+                      style={{ padding: '3px 8px', flex: 'none', minWidth: 'unset' }}
+                      onClick={() => {
+                        const v = parseFloat(customSpeedInput)
+                        if (v >= 0.1 && v <= 10) { setSpeed(v); setShowSpeedMenu(false) }
+                      }}
+                    >
+                      Set
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Audio track selector */}
+            {audioStreams.length > 1 && (
+              <div className="player-menu-wrap" style={{ position: 'relative' }}>
+                <button
+                  className={`player-btn sub-btn ${activeAudioIdx > 0 ? 'active' : ''}`}
+                  onClick={() => { setShowAudioMenu((v) => !v); setShowSubMenu(false); setShowSpeedMenu(false) }}
+                  title="Select audio track"
+                >
+                  {activeAudioLabel}
+                </button>
+                {showAudioMenu && (
+                  <div className="player-track-menu">
+                    {audioStreams.map((s, i) => (
+                      <button
+                        key={i}
+                        className={`track-menu-item ${i === activeAudioIdx ? 'active' : ''}`}
+                        onClick={() => selectAudio(i)}
+                      >
+                        {s.lang ? s.lang.toUpperCase() : `Track ${i + 1}`}
+                        <span className="track-codec">{s.codecName}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Subtitle selector */}
+            {subtitles.length > 0 && (
+              <div className="player-menu-wrap" style={{ position: 'relative' }}>
+                <button
+                  className={`player-btn sub-btn ${activeSubIdx !== -1 ? 'active' : ''}`}
+                  onClick={() => { setShowSubMenu((v) => !v); setShowAudioMenu(false); setShowSpeedMenu(false) }}
+                  title="Select subtitles"
+                >
+                  {activeSubLabel}
+                </button>
+                {showSubMenu && (
+                  <div className="player-track-menu">
+                    <button
+                      className={`track-menu-item ${activeSubIdx === -1 ? 'active' : ''}`}
+                      onClick={() => { setActiveSubIdx(-1); setShowSubMenu(false) }}
+                    >
+                      Off
+                    </button>
+                    {subtitles.map((s, i) => (
+                      <button
+                        key={i}
+                        className={`track-menu-item ${i === activeSubIdx ? 'active' : ''}`}
+                        onClick={() => selectSubtitle(i)}
+                      >
+                        {s.label}
+                        {s.streamIndex != null && <span className="track-codec">embedded</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button className="player-btn" onClick={() => {
+              if (path) window.api.saveBookmark(path, played * duration)
+            }} title="Save bookmark">
+              🔖
+            </button>
+
+            <button className="player-btn" onClick={toggleFullscreen}>
+              {fullscreen ? '⊡' : '⛶'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
