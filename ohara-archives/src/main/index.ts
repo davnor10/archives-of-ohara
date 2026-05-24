@@ -19,6 +19,9 @@ protocol.registerSchemesAsPrivileged([
 
 const VIDEO_EXTS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.ts', '.m2ts', '.webm'])
 
+// Containers Chromium can never play natively — always transcode regardless of codec
+const ALWAYS_TRANSCODE_EXTS = new Set(['.avi', '.wmv', '.ts', '.m2ts', '.mov'])
+
 const MIME_MAP: Record<string, string> = {
   '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',
   '.avi': 'video/x-msvideo', '.mov': 'video/quicktime', '.m4v': 'video/mp4',
@@ -169,7 +172,7 @@ app.whenReady().then(async () => {
             } catch { /* ignore */ }
           }
 
-          if (needsTranscode(streams, audioIdx)) {
+          if (ALWAYS_TRANSCODE_EXTS.has(ext) || needsTranscode(streams, audioIdx)) {
             const proc = spawnTranscode(filePath, { audioIdx, startSec } as TranscodeOpts, streams)
             const stream = nodeStreamToWeb(proc.stdout, () => { try { proc.kill() } catch { /* ignore */ } })
             return new Response(stream, { status: 200, headers: { 'Content-Type': 'video/mp4' } })

@@ -50,6 +50,12 @@ export default function SetSailModal({ open, onClose, type }: Props) {
     if (open && pool.length) roll()
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    if (pool.length) roll()
+    else setPicked(null)
+  }, [filterTagIds])
+
   const handleWatch = () => {
     if (!picked) return
     onClose()
