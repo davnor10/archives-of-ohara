@@ -109,6 +109,9 @@ export default function PlayerScreen() {
   const endedRef = useRef(false)
   const seekingRef = useRef(false)
   const lastSeekTimeRef = useRef(0)
+  // When true, no hide-timer callback may hide the controls.
+  // Set by skip(); cleared the next time the mouse moves.
+  const lockControlsRef = useRef(false)
 
   const src = mediaUrl(path, activeAudioIdx, isTranscoded ? seekOffset : 0)
 
@@ -223,10 +226,11 @@ export default function PlayerScreen() {
 
   // ── Controls visibility ────────────────────────────────────────────────────
   const showControls = useCallback(() => {
+    lockControlsRef.current = false   // mouse moved — unlock skip-lock
     setControlsVisible(true)
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     hideTimerRef.current = setTimeout(() => {
-      if (playing) setControlsVisible(false)
+      if (playing && !lockControlsRef.current) setControlsVisible(false)
     }, HIDE_DELAY)
   }, [playing])
 
@@ -235,7 +239,9 @@ export default function PlayerScreen() {
       setControlsVisible(true)
       if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
     } else {
-      hideTimerRef.current = setTimeout(() => setControlsVisible(false), HIDE_DELAY)
+      hideTimerRef.current = setTimeout(() => {
+        if (!lockControlsRef.current) setControlsVisible(false)
+      }, HIDE_DELAY)
     }
     return () => { if (hideTimerRef.current) clearTimeout(hideTimerRef.current) }
   }, [playing])
@@ -278,7 +284,7 @@ export default function PlayerScreen() {
       ? seekOffset + (videoRef.current?.currentTime ?? 0)
       : (videoRef.current?.currentTime ?? 0)
     seekTo(currentAbs + delta)
-    // Show controls but don't schedule a hide — stays visible until next mouse move
+    lockControlsRef.current = true     // prevent any pending or future timer from hiding
     setControlsVisible(true)
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
   }, [isTranscoded, seekOffset, seekTo])
