@@ -102,6 +102,19 @@ const upsertMovie = db.prepare(`
   ON CONFLICT(path) DO UPDATE SET title=excluded.title, scanned_at=excluded.scanned_at
 `)
 
+function parseSeasonNum(name: string): number | null {
+  // "Season 1", "Part 2", "Arc 3", "Vol 1", "Saga 2", "Cour 1", "Series 1"
+  let m = name.match(/(?:season|part|vol(?:ume)?|arc|saga|cour|series)\s*(\d+)/i)
+  if (m) return parseInt(m[1], 10)
+  // "S01", "S1" at the very start
+  m = name.match(/^[sS](\d+)(?!\d)/)
+  if (m) return parseInt(m[1], 10)
+  // Bare number as the entire folder name: "1", "01"
+  m = name.match(/^(\d+)$/)
+  if (m) return parseInt(m[1], 10)
+  return null
+}
+
 function parseEpInfo(filename: string): { season: number; ep: number | null } {
   const sxe = filename.match(/[sS](\d+)[eE](\d+)/)
   if (sxe) return { season: parseInt(sxe[1], 10), ep: parseInt(sxe[2], 10) }
@@ -128,22 +141,45 @@ function scanShows(rootPaths: string[], now: string): void {
         return showId
       }
 
-      for (const sub of safeReadDir(showPath)) {
-        const subPath = join(showPath, sub)
-        const subStat = safeStat(subPath)
-        if (!subStat) continue
+      // ── Season directories: two-pass so every subdir gets a unique season number ──
+      const dirEntries = safeReadDir(showPath)
+        .map((name) => ({ name, path: join(showPath, name) }))
+        .filter(({ path }) => safeStat(path)?.isDirectory())
+        .sort((a, b) => a.name.localeCompare(b.name))
 
-        if (subStat.isDirectory()) {
-          const seasonMatch = sub.match(/season\s*(\d+)/i) || sub.match(/^[sS](\d+)$/) || sub.match(/^(\d+)$/)
-          const season = seasonMatch ? parseInt(seasonMatch[1], 10) : 1
-          for (const epFile of safeReadDir(subPath)) {
-            if (!isVideo(epFile)) continue
-            const { ep } = parseEpInfo(epFile)
-            upsertEp.run(ensureShow(), season, ep, cleanTitle(epFile), join(subPath, epFile), now)
-          }
-        } else if (subStat.isFile() && isVideo(sub)) {
-          const { season, ep } = parseEpInfo(sub)
-          upsertEp.run(ensureShow(), season, ep, cleanTitle(sub), subPath, now)
+      // First pass: lock in recognised numbers
+      const seasonMap = new Map<string, number>() // path → season
+      const usedNums = new Set<number>()
+      for (const { name, path } of dirEntries) {
+        const n = parseSeasonNum(name)
+        if (n !== null && !usedNums.has(n)) {
+          seasonMap.set(path, n)
+          usedNums.add(n)
+        }
+      }
+      // Second pass: assign sequential numbers to unrecognised or duplicate dirs
+      let seq = usedNums.size > 0 ? Math.max(...usedNums) + 1 : 1
+      for (const { path } of dirEntries) {
+        if (!seasonMap.has(path)) {
+          seasonMap.set(path, seq++)
+        }
+      }
+      // Scan episodes in each season dir
+      for (const { path: subPath } of dirEntries) {
+        const season = seasonMap.get(subPath)!
+        for (const epFile of safeReadDir(subPath)) {
+          if (!isVideo(epFile)) continue
+          const { ep } = parseEpInfo(epFile)
+          upsertEp.run(ensureShow(), season, ep, cleanTitle(epFile), join(subPath, epFile), now)
+        }
+      }
+
+      // ── Files directly in the show folder (season/episode parsed from filename) ──
+      for (const name of safeReadDir(showPath)) {
+        const p = join(showPath, name)
+        if (safeStat(p)?.isFile() && isVideo(name)) {
+          const { season, ep } = parseEpInfo(name)
+          upsertEp.run(ensureShow(), season, ep, cleanTitle(name), p, now)
         }
       }
     }

@@ -108,6 +108,7 @@ export default function PlayerScreen() {
   const [showFrozenFrame, setShowFrozenFrame] = useState(false)
   const endedRef = useRef(false)
   const seekingRef = useRef(false)
+  const lastSeekTimeRef = useRef(0)
 
   const src = mediaUrl(path, activeAudioIdx, isTranscoded ? seekOffset : 0)
 
@@ -252,6 +253,7 @@ export default function PlayerScreen() {
   const seekTo = useCallback((targetSec: number) => {
     const clamped = Math.max(0, Math.min(duration, targetSec))
     if (duration > 0) setPlayed(clamped / duration)
+    lastSeekTimeRef.current = Date.now()
     if (isTranscoded) {
       // Capture current frame before the stream restarts so the screen doesn't go black
       const video = videoRef.current
@@ -276,8 +278,10 @@ export default function PlayerScreen() {
       ? seekOffset + (videoRef.current?.currentTime ?? 0)
       : (videoRef.current?.currentTime ?? 0)
     seekTo(currentAbs + delta)
-    showControls()
-  }, [isTranscoded, seekOffset, seekTo, showControls])
+    // Show controls but don't schedule a hide — stays visible until next mouse move
+    setControlsVisible(true)
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
+  }, [isTranscoded, seekOffset, seekTo])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -406,7 +410,9 @@ export default function PlayerScreen() {
             const el = e.currentTarget
             const code = el.error?.code ?? 0
             if (code === 1) return
-            if (code === 2 && (endedRef.current || seekingRef.current)) return
+            // Suppress NETWORK errors while seeking or within 3s of a seek
+            // (the dying old FFmpeg stream fires a pipeline error after onCanPlay clears seekingRef)
+            if (code === 2 && (endedRef.current || seekingRef.current || Date.now() - lastSeekTimeRef.current < 3000)) return
             seekingRef.current = false
             setShowFrozenFrame(false)
             const msg = el.error?.message ?? 'unknown'
