@@ -2,6 +2,8 @@ import { useRef, useState, useEffect } from 'react'
 import { useStore } from '../store'
 import { tagColor } from './TagPicker'
 
+export type SortKey = 'title' | 'year' | 'rating' | 'last_watched'
+
 interface Props {
   query: string
   onQueryChange: (q: string) => void
@@ -10,13 +12,19 @@ interface Props {
   filterMode: 'or' | 'and'
   onFilterModeChange: (mode: 'or' | 'and') => void
   placeholder?: string
+  sort?: SortKey
+  onSortChange?: (s: SortKey) => void
+  sortDir?: 'asc' | 'desc'
+  onSortDirChange?: (d: 'asc' | 'desc') => void
 }
 
 export default function SearchFilterBar({
   query, onQueryChange,
   activeTags, onTagsChange,
   filterMode, onFilterModeChange,
-  placeholder
+  placeholder,
+  sort, onSortChange,
+  sortDir, onSortDirChange,
 }: Props) {
   const { tags } = useStore()
   const [showTagMenu, setShowTagMenu] = useState(false)
@@ -123,6 +131,30 @@ export default function SearchFilterBar({
           </span>
         )
       })}
+
+      {onSortChange && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+          <select
+            className="sort-select"
+            value={sort ?? 'title'}
+            onChange={(e) => onSortChange(e.target.value as SortKey)}
+          >
+            <option value="title">Title</option>
+            <option value="year">Year</option>
+            <option value="rating">Rating</option>
+            <option value="last_watched">Last Watched</option>
+          </select>
+          {onSortDirChange && (
+            <button
+              className="sort-dir-btn"
+              onClick={() => onSortDirChange(sortDir === 'asc' ? 'desc' : 'asc')}
+              title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortDir === 'asc' ? '↑' : '↓'}
+            </button>
+          )}
+        </div>
+      )}
 
       {activeTags.length >= 2 && (
         <button

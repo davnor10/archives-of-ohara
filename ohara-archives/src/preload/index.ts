@@ -26,6 +26,10 @@ const api = {
 
   markWatched: (mediaPath: string, watched: boolean): Promise<void> =>
     ipcRenderer.invoke('mark-watched', mediaPath, watched),
+  updateLastWatched: (mediaPath: string): Promise<unknown> =>
+    ipcRenderer.invoke('update-last-watched', mediaPath),
+  getAllBookmarks: (): Promise<unknown[]> =>
+    ipcRenderer.invoke('get-all-bookmarks'),
 
   getMediaPort: (): Promise<number> => ipcRenderer.invoke('get-media-port'),
 

@@ -13,12 +13,13 @@ function AppRoutes() {
   const location = useLocation()
   const [sailOpen, setSailOpen] = useState(false)
   const [sailType, setSailType] = useState<'movie' | 'show'>('show')
-  const { loadTags, loadMediaTags, loadSettings } = useStore()
+  const { loadTags, loadMediaTags, loadSettings, loadBookmarks } = useStore()
 
   useEffect(() => {
     loadTags()
     loadMediaTags()
     loadSettings()
+    loadBookmarks()
   }, [])
 
   const handleSetSail = () => {

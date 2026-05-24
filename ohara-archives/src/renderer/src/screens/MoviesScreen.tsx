@@ -3,20 +3,47 @@ import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
 import MediaCard from '../components/MediaCard'
 import PageWrapper from '../components/PageWrapper'
-import SearchFilterBar from '../components/SearchFilterBar'
+import SearchFilterBar, { type SortKey } from '../components/SearchFilterBar'
 import type { MediaItem } from '../../../preload/index.d'
 
+function sortItems(items: MediaItem[], sort: SortKey, dir: 'asc' | 'desc'): MediaItem[] {
+  const asc = dir === 'asc'
+  return [...items].sort((a, b) => {
+    if (sort === 'year') {
+      return asc ? (a.year ?? 0) - (b.year ?? 0) : (b.year ?? 0) - (a.year ?? 0)
+    }
+    if (sort === 'rating') {
+      return asc ? (a.rating ?? 0) - (b.rating ?? 0) : (b.rating ?? 0) - (a.rating ?? 0)
+    }
+    if (sort === 'last_watched') {
+      // nulls always at the end
+      if (!a.last_watched_at && !b.last_watched_at) return 0
+      if (!a.last_watched_at) return 1
+      if (!b.last_watched_at) return -1
+      return asc
+        ? a.last_watched_at.localeCompare(b.last_watched_at)
+        : b.last_watched_at.localeCompare(a.last_watched_at)
+    }
+    // title (default)
+    return asc
+      ? a.title.localeCompare(b.title)
+      : b.title.localeCompare(a.title)
+  })
+}
+
 export default function MoviesScreen() {
-  const { movies, loadMovies, mediaTags } = useStore()
+  const { movies, loadMovies, mediaTags, bookmarks, removeBookmark } = useStore()
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState<number[]>([])
   const [filterMode, setFilterMode] = useState<'or' | 'and'>('or')
+  const [sort, setSort] = useState<SortKey>('title')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const navigate = useNavigate()
 
   useEffect(() => { loadMovies() }, [])
 
   const filtered = useMemo(() => {
-    return movies.filter((movie) => {
+    const base = movies.filter((movie) => {
       if (query && !movie.title.toLowerCase().includes(query.toLowerCase())) return false
       if (activeTags.length === 0) return true
       const itemTags = mediaTags[movie.id] ?? []
@@ -24,7 +51,8 @@ export default function MoviesScreen() {
         ? activeTags.some((t) => itemTags.includes(t))
         : activeTags.every((t) => itemTags.includes(t))
     })
-  }, [movies, query, activeTags, filterMode, mediaTags])
+    return sortItems(base, sort, sortDir)
+  }, [movies, query, activeTags, filterMode, mediaTags, sort, sortDir])
 
   const handlePlay = (movie: MediaItem) => {
     navigate('/player', {
@@ -61,6 +89,10 @@ export default function MoviesScreen() {
           filterMode={filterMode}
           onFilterModeChange={setFilterMode}
           placeholder="Search movies…"
+          sort={sort}
+          onSortChange={setSort}
+          sortDir={sortDir}
+          onSortDirChange={setSortDir}
         />
       )}
 
@@ -84,6 +116,8 @@ export default function MoviesScreen() {
             <MediaCard
               key={movie.id}
               item={movie}
+              hasBookmark={!!bookmarks[movie.path]}
+              onRemoveBookmark={() => removeBookmark(movie.path)}
               onClick={() => handlePlay(movie)}
             />
           ))}

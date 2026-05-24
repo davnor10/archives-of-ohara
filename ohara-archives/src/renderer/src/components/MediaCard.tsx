@@ -7,6 +7,7 @@ import { useStore } from '../store'
 interface Props {
   item: MediaItem
   hasBookmark?: boolean
+  onRemoveBookmark?: () => void
   onClick: () => void
 }
 
@@ -17,7 +18,7 @@ function formatDur(sec: number): string {
   return `${m}m`
 }
 
-export default function MediaCard({ item, hasBookmark, onClick }: Props) {
+export default function MediaCard({ item, hasBookmark, onRemoveBookmark, onClick }: Props) {
   const { tags, mediaTags } = useStore()
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 })
@@ -83,7 +84,20 @@ export default function MediaCard({ item, hasBookmark, onClick }: Props) {
             </div>
           )}
         </div>
-        {hasBookmark && <span className="media-card-bookmark">🔖</span>}
+        {hasBookmark && (
+          <div className="media-card-bookmark-wrap">
+            <span className="media-card-bookmark">🔖</span>
+            {onRemoveBookmark && (
+              <button
+                className="media-card-bookmark-remove"
+                onClick={(e) => { e.stopPropagation(); onRemoveBookmark() }}
+                title="Remove bookmark"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {tagPickerOpen && (

@@ -128,6 +128,7 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    mainWindow.maximize()
   })
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -286,6 +287,25 @@ app.whenReady().then(async () => {
   ipcMain.handle('mark-watched', (_e, mediaPath: string, watched: boolean) => {
     db.prepare('UPDATE episodes SET watched=? WHERE path=?').run(watched ? 1 : 0, mediaPath)
   })
+
+  ipcMain.handle('update-last-watched', (_e, mediaPath: string) => {
+    const now = new Date().toISOString()
+    const movie = db.prepare<[string], { id: number }>('SELECT id FROM media_items WHERE path=? AND type="movie"').get(mediaPath)
+    if (movie) {
+      db.prepare('UPDATE media_items SET last_watched_at=? WHERE id=?').run(now, movie.id)
+      return { mediaId: movie.id, type: 'movie', last_watched_at: now }
+    }
+    const ep = db.prepare<[string], { show_id: number }>('SELECT show_id FROM episodes WHERE path=?').get(mediaPath)
+    if (ep) {
+      db.prepare('UPDATE media_items SET last_watched_at=? WHERE id=?').run(now, ep.show_id)
+      return { mediaId: ep.show_id, type: 'show', last_watched_at: now }
+    }
+    return null
+  })
+
+  ipcMain.handle('get-all-bookmarks', () =>
+    db.prepare('SELECT media_path, timestamp_seconds FROM bookmarks').all()
+  )
 
   ipcMain.handle('get-tags', () =>
     db.prepare('SELECT * FROM tags ORDER BY is_default DESC, name ASC').all()

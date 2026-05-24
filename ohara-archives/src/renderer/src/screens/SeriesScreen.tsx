@@ -5,8 +5,29 @@ import { useStore } from '../store'
 import MediaCard from '../components/MediaCard'
 import ShowDetail from '../components/ShowDetail'
 import PageWrapper from '../components/PageWrapper'
-import SearchFilterBar from '../components/SearchFilterBar'
+import SearchFilterBar, { type SortKey } from '../components/SearchFilterBar'
 import type { MediaItem } from '../../../preload/index.d'
+
+function sortItems(items: MediaItem[], sort: SortKey, dir: 'asc' | 'desc'): MediaItem[] {
+  const asc = dir === 'asc'
+  return [...items].sort((a, b) => {
+    if (sort === 'year') {
+      return asc ? (a.year ?? 0) - (b.year ?? 0) : (b.year ?? 0) - (a.year ?? 0)
+    }
+    if (sort === 'rating') {
+      return asc ? (a.rating ?? 0) - (b.rating ?? 0) : (b.rating ?? 0) - (a.rating ?? 0)
+    }
+    if (sort === 'last_watched') {
+      if (!a.last_watched_at && !b.last_watched_at) return 0
+      if (!a.last_watched_at) return 1
+      if (!b.last_watched_at) return -1
+      return asc
+        ? a.last_watched_at.localeCompare(b.last_watched_at)
+        : b.last_watched_at.localeCompare(a.last_watched_at)
+    }
+    return asc ? a.title.localeCompare(b.title) : b.title.localeCompare(a.title)
+  })
+}
 
 export default function SeriesScreen() {
   const { shows, loadShows, mediaTags } = useStore()
@@ -14,6 +35,8 @@ export default function SeriesScreen() {
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState<number[]>([])
   const [filterMode, setFilterMode] = useState<'or' | 'and'>('or')
+  const [sort, setSort] = useState<SortKey>('title')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const location = useLocation()
 
   useEffect(() => { loadShows() }, [])
@@ -27,7 +50,7 @@ export default function SeriesScreen() {
   }, [location.state, shows])
 
   const filtered = useMemo(() => {
-    return shows.filter((show) => {
+    const base = shows.filter((show) => {
       if (query && !show.title.toLowerCase().includes(query.toLowerCase())) return false
       if (activeTags.length === 0) return true
       const itemTags = mediaTags[show.id] ?? []
@@ -35,7 +58,8 @@ export default function SeriesScreen() {
         ? activeTags.some((t) => itemTags.includes(t))
         : activeTags.every((t) => itemTags.includes(t))
     })
-  }, [shows, query, activeTags, filterMode, mediaTags])
+    return sortItems(base, sort, sortDir)
+  }, [shows, query, activeTags, filterMode, mediaTags, sort, sortDir])
 
   const handleCardClick = (show: MediaItem) => {
     setSelected((prev) => (prev?.id === show.id ? null : show))
@@ -65,6 +89,10 @@ export default function SeriesScreen() {
           filterMode={filterMode}
           onFilterModeChange={setFilterMode}
           placeholder="Search series…"
+          sort={sort}
+          onSortChange={setSort}
+          sortDir={sortDir}
+          onSortDirChange={setSortDir}
         />
       )}
 

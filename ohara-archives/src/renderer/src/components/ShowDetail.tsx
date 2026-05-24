@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function ShowDetail({ show, onClose }: Props) {
-  const { episodes, loadEpisodes, tags, mediaTags } = useStore()
+  const { episodes, loadEpisodes, tags, mediaTags, updateLastWatched } = useStore()
   const [bookmarks, setBookmarks] = useState<Record<string, number>>({})
   const [continueEp, setContinueEp] = useState<Episode | null>(null)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
@@ -69,7 +69,15 @@ export default function ShowDetail({ show, onClose }: Props) {
 
   const watchedCount = eps.filter((e) => e.watched).length
 
+  const removeEpBookmark = async (e: React.MouseEvent, ep: Episode) => {
+    e.stopPropagation()
+    await window.api.deleteBookmark(ep.path)
+    setBookmarks((prev) => { const next = { ...prev }; delete next[ep.path]; return next })
+    if (continueEp?.id === ep.id) setContinueEp(null)
+  }
+
   const playEpisode = (ep: Episode) => {
+    updateLastWatched(ep.path)
     navigate('/player', {
       state: {
         path: ep.path,
@@ -285,7 +293,18 @@ export default function ShowDetail({ show, onClose }: Props) {
                   {ep.duration_seconds && ep.duration_seconds > 0 && (
                     <span className="ep-duration">{formatDur(ep.duration_seconds)}</span>
                   )}
-                  {bookmarks[ep.path] && <span className="ep-bookmark">🔖</span>}
+                  {bookmarks[ep.path] && (
+                    <span className="ep-bookmark" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      🔖
+                      <button
+                        className="ep-bookmark-remove"
+                        onClick={(e) => removeEpBookmark(e, ep)}
+                        title="Remove bookmark"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

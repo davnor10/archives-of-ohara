@@ -11,6 +11,7 @@ interface AppStore {
   lastScanResult: { shows: number; movies: number } | null
   tags: Tag[]
   mediaTags: Record<number, number[]>
+  bookmarks: Record<string, number> // path → timestamp_seconds
 
   loadShows: () => Promise<void>
   loadMovies: () => Promise<void>
@@ -21,6 +22,9 @@ interface AppStore {
   saveSettings: (data: Partial<AppSettings>) => Promise<void>
   loadTags: () => Promise<void>
   loadMediaTags: () => Promise<void>
+  loadBookmarks: () => Promise<void>
+  removeBookmark: (path: string) => Promise<void>
+  updateLastWatched: (mediaPath: string) => Promise<void>
   addTag: (name: string) => Promise<Tag | null>
   deleteTag: (id: number) => Promise<void>
   setMediaTags: (mediaId: number, tagIds: number[]) => Promise<void>
@@ -36,27 +40,31 @@ export const useStore = create<AppStore>((set, get) => ({
   lastScanResult: null,
   tags: [],
   mediaTags: {},
+  bookmarks: {},
 
   loadShows: async () => {
+    if (get().shows.length > 0) return
     const shows = await window.api.getMedia('show')
-    set({ shows })
+    set({ shows: shows as MediaItem[] })
   },
 
   loadMovies: async () => {
+    if (get().movies.length > 0) return
     const movies = await window.api.getMedia('movie')
-    set({ movies })
+    set({ movies: movies as MediaItem[] })
   },
 
   loadEpisodes: async (showId: number) => {
+    if (get().episodes[showId]) return
     const eps = await window.api.getEpisodes(showId)
-    set((s) => ({ episodes: { ...s.episodes, [showId]: eps } }))
+    set((s) => ({ episodes: { ...s.episodes, [showId]: eps as Episode[] } }))
   },
 
   scanMedia: async () => {
     set({ isScanning: true })
     try {
       const result = await window.api.scanMedia()
-      set({ lastScanResult: result })
+      set({ lastScanResult: result, shows: [], movies: [], episodes: {} })
       await Promise.all([get().loadShows(), get().loadMovies()])
     } finally {
       set({ isScanning: false })
@@ -67,6 +75,7 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ isFetchingTmdb: true })
     try {
       await window.api.fetchTmdb()
+      set({ shows: [], movies: [] })
       await Promise.all([get().loadShows(), get().loadMovies()])
     } finally {
       set({ isFetchingTmdb: false })
@@ -86,7 +95,7 @@ export const useStore = create<AppStore>((set, get) => ({
 
   loadTags: async () => {
     const tags = await window.api.getTags()
-    set({ tags })
+    set({ tags: tags as Tag[] })
   },
 
   loadMediaTags: async () => {
@@ -94,10 +103,37 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ mediaTags })
   },
 
+  loadBookmarks: async () => {
+    const rows = await window.api.getAllBookmarks()
+    const bookmarks: Record<string, number> = {}
+    for (const r of rows) bookmarks[r.media_path] = r.timestamp_seconds
+    set({ bookmarks })
+  },
+
+  removeBookmark: async (path: string) => {
+    await window.api.deleteBookmark(path)
+    set((s) => {
+      const bookmarks = { ...s.bookmarks }
+      delete bookmarks[path]
+      return { bookmarks }
+    })
+  },
+
+  updateLastWatched: async (mediaPath: string) => {
+    const result = await window.api.updateLastWatched(mediaPath)
+    if (!result) return
+    const { mediaId, type, last_watched_at } = result
+    if (type === 'movie') {
+      set((s) => ({ movies: s.movies.map((m) => m.id === mediaId ? { ...m, last_watched_at } : m) }))
+    } else {
+      set((s) => ({ shows: s.shows.map((sh) => sh.id === mediaId ? { ...sh, last_watched_at } : sh) }))
+    }
+  },
+
   addTag: async (name: string) => {
     const tag = await window.api.addTag(name)
-    if (tag) set((s) => ({ tags: [...s.tags, tag] }))
-    return tag
+    if (tag) set((s) => ({ tags: [...s.tags, tag as Tag] }))
+    return tag as Tag | null
   },
 
   deleteTag: async (id: number) => {

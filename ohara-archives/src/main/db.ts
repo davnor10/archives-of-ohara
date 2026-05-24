@@ -64,6 +64,7 @@ db.exec(`
 try { db.exec('ALTER TABLE episodes ADD COLUMN watched INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE episodes ADD COLUMN duration_seconds REAL') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN duration_seconds REAL') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE media_items ADD COLUMN last_watched_at TEXT') } catch { /* column exists */ }
 
 // Seed default tags once
 const DEFAULT_TAGS = [

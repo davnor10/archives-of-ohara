@@ -10,6 +10,7 @@ export interface MediaItem {
   tmdb_id?: number
   scanned_at: string
   duration_seconds?: number
+  last_watched_at?: string
 }
 
 export interface Episode {
@@ -75,6 +76,8 @@ export interface OharaAPI {
   getBookmark: (mediaPath: string) => Promise<Bookmark | null>
   deleteBookmark: (mediaPath: string) => Promise<void>
   markWatched: (mediaPath: string, watched: boolean) => Promise<void>
+  updateLastWatched: (mediaPath: string) => Promise<{ mediaId: number; type: string; last_watched_at: string } | null>
+  getAllBookmarks: () => Promise<Array<{ media_path: string; timestamp_seconds: number }>>
   getMediaPort: () => Promise<number>
   getSubtitles: (videoPath: string) => Promise<SubtitleFile[]>
   getStreams: (videoPath: string) => Promise<MediaStream[]>

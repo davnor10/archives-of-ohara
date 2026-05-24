@@ -66,7 +66,8 @@ export default function PlayerScreen() {
   const navigate = useNavigate()
   const state = location.state as PlayerState | null
   const { path, title, isEpisode, durationSeconds } = state ?? { path: '', title: '' }
-  const { settings } = useStore()
+  const { settings, updateLastWatched } = useStore()
+  const lastWatchedCalledRef = useRef(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -384,7 +385,13 @@ export default function PlayerScreen() {
             if (hasStarted && !isSeeking) return
             seekingRef.current = false
             const firstLoad = !hasStarted
-            if (firstLoad) setHasStarted(true)
+            if (firstLoad) {
+              setHasStarted(true)
+              if (!lastWatchedCalledRef.current) {
+                lastWatchedCalledRef.current = true
+                updateLastWatched(path)
+              }
+            }
             if (!showResumePrompt && (firstLoad || playing)) {
               e.currentTarget.play().catch(console.error)
               if (firstLoad) setPlaying(true)
@@ -631,13 +638,17 @@ export default function PlayerScreen() {
               </div>
             )}
 
-            <button className="player-btn" onClick={() => {
-              if (path) {
-                window.api.saveBookmark(path, played * duration)
-                setBookmarkToast(true)
-                setTimeout(() => setBookmarkToast(false), 1800)
-              }
-            }} title="Save bookmark">
+            <button
+              className={`player-btn${bookmarkToast ? ' bookmark-btn-glow' : ''}`}
+              onClick={() => {
+                if (path) {
+                  window.api.saveBookmark(path, played * duration)
+                  setBookmarkToast(true)
+                  setTimeout(() => setBookmarkToast(false), 1800)
+                }
+              }}
+              title="Save bookmark"
+            >
               🔖
             </button>
 
