@@ -20,7 +20,8 @@ protocol.registerSchemesAsPrivileged([
 const VIDEO_EXTS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.ts', '.m2ts', '.webm'])
 
 // Containers Chromium can never play natively — always transcode regardless of codec
-const ALWAYS_TRANSCODE_EXTS = new Set(['.avi', '.wmv', '.ts', '.m2ts', '.mov'])
+// .mkv: Chromium's MKV support is unreliable across platforms; stream-copy (H.264) is near-free
+const ALWAYS_TRANSCODE_EXTS = new Set(['.mkv', '.avi', '.wmv', '.ts', '.m2ts', '.mov'])
 
 const MIME_MAP: Record<string, string> = {
   '.mp4': 'video/mp4', '.mkv': 'video/x-matroska', '.webm': 'video/webm',

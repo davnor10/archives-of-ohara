@@ -32,6 +32,7 @@ function sortItems(items: MediaItem[], sort: SortKey, dir: 'asc' | 'desc'): Medi
 export default function SeriesScreen() {
   const { shows, loadShows, mediaTags } = useStore()
   const [selected, setSelected] = useState<MediaItem | null>(null)
+  const [initialSeason, setInitialSeason] = useState<number | undefined>(undefined)
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState<number[]>([])
   const [filterMode, setFilterMode] = useState<'or' | 'and'>('or')
@@ -42,10 +43,13 @@ export default function SeriesScreen() {
   useEffect(() => { loadShows() }, [])
 
   useEffect(() => {
-    const state = location.state as { selectedShow?: number } | null
+    const state = location.state as { selectedShow?: number; selectedSeason?: number } | null
     if (state?.selectedShow && shows.length) {
       const show = shows.find((s) => s.id === state.selectedShow)
-      if (show) setSelected(show)
+      if (show) {
+        setSelected(show)
+        setInitialSeason(state.selectedSeason)
+      }
     }
   }, [location.state, shows])
 
@@ -63,6 +67,7 @@ export default function SeriesScreen() {
 
   const handleCardClick = (show: MediaItem) => {
     setSelected((prev) => (prev?.id === show.id ? null : show))
+    setInitialSeason(undefined)
   }
 
   const hasFilter = query !== '' || activeTags.length > 0
@@ -128,6 +133,7 @@ export default function SeriesScreen() {
                 key={selected.id}
                 show={selected}
                 onClose={() => setSelected(null)}
+                initialSeason={initialSeason}
               />
             )}
           </AnimatePresence>

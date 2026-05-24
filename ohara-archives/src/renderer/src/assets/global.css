@@ -427,8 +427,7 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
-  padding: 10px 22px;
+  padding: 6px 16px;
   background: linear-gradient(135deg, rgba(126,202,195,0.2), rgba(26,92,122,0.3));
   border: 1px solid rgba(126,202,195,0.4);
   border-radius: 4px;
@@ -439,6 +438,7 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   cursor: pointer;
   transition: all 0.2s;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .continue-btn:hover {
@@ -1262,6 +1262,13 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   flex-wrap: wrap;
   border-bottom: 1px solid rgba(201,168,76,0.1);
   margin-bottom: 4px;
+}
+
+.episode-view-toolbar .btn,
+.episode-view-toolbar .continue-btn,
+.episode-view-toolbar .season-select {
+  height: 30px;
+  box-sizing: border-box;
 }
 
 .season-select {

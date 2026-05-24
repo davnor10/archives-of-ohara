@@ -9,6 +9,8 @@ interface PlayerState {
   year?: number
   isEpisode?: boolean
   durationSeconds?: number
+  showId?: number
+  seasonNumber?: number
 }
 
 interface VttCue {
@@ -65,8 +67,8 @@ export default function PlayerScreen() {
   const location = useLocation()
   const navigate = useNavigate()
   const state = location.state as PlayerState | null
-  const { path, title, isEpisode, durationSeconds } = state ?? { path: '', title: '' }
-  const { settings, updateLastWatched } = useStore()
+  const { path, title, isEpisode, durationSeconds, showId, seasonNumber } = state ?? { path: '', title: '' }
+  const { settings, updateLastWatched, loadBookmarks } = useStore()
   const lastWatchedCalledRef = useRef(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -207,13 +209,14 @@ export default function PlayerScreen() {
     return () => clearInterval(interval)
   }, [playing, played, duration, path])
 
-  // Save bookmark on unmount
+  // Save bookmark + refresh bookmark store on unmount
   useEffect(() => {
     return () => {
       if (path && duration > 0 && played > 0) {
         const sec = played * duration
         if (sec > 5) window.api.saveBookmark(path, sec)
       }
+      loadBookmarks()
     }
   }, [])
 
@@ -273,7 +276,8 @@ export default function PlayerScreen() {
       ? seekOffset + (videoRef.current?.currentTime ?? 0)
       : (videoRef.current?.currentTime ?? 0)
     seekTo(currentAbs + delta)
-  }, [isTranscoded, seekOffset, seekTo])
+    showControls()
+  }, [isTranscoded, seekOffset, seekTo, showControls])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -293,6 +297,7 @@ export default function PlayerScreen() {
         case 'KeyM': setMuted((m) => !m); break
         case 'Escape':
           if (document.fullscreenElement) document.exitFullscreen()
+          else if (isEpisode && showId) navigate('/series', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
           else navigate(-1)
           break
       }
@@ -467,7 +472,11 @@ export default function PlayerScreen() {
         <button
           className="player-back-btn"
           style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s' }}
-          onClick={(e) => { e.stopPropagation(); navigate(-1) }}
+          onClick={(e) => {
+            e.stopPropagation()
+            if (isEpisode && showId) navigate('/series', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
+            else navigate(-1)
+          }}
         >
           ← Back
         </button>

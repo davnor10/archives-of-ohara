@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useStore } from '../store'
@@ -9,14 +9,17 @@ import TagPicker, { tagColor } from './TagPicker'
 interface Props {
   show: MediaItem
   onClose: () => void
+  initialSeason?: number
 }
 
-export default function ShowDetail({ show, onClose }: Props) {
+export default function ShowDetail({ show, onClose, initialSeason }: Props) {
   const { episodes, loadEpisodes, tags, mediaTags, updateLastWatched } = useStore()
   const [bookmarks, setBookmarks] = useState<Record<string, number>>({})
   const [continueEp, setContinueEp] = useState<Episode | null>(null)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [editingTags, setEditingTags] = useState(false)
+  const [localDurations, setLocalDurations] = useState<Record<string, number>>({})
+  const probedRef = useRef<Set<string>>(new Set())
   const navigate = useNavigate()
 
   const showTagIds = mediaTags[show.id] ?? []
@@ -57,15 +60,33 @@ export default function ShowDetail({ show, onClose }: Props) {
       .sort((a, b) => a.season - b.season)
   }, [eps])
 
-  // Single-season shows skip the picker
+  // Auto-select season: prefer initialSeason, then auto-select if only one
   useEffect(() => {
-    if (seasons.length === 1) setSelectedSeason(seasons[0].season)
-  }, [seasons.length])
+    if (!seasons.length) return
+    if (initialSeason != null && seasons.some((s) => s.season === initialSeason)) {
+      setSelectedSeason(initialSeason)
+    } else if (seasons.length === 1) {
+      setSelectedSeason(seasons[0].season)
+    }
+  }, [seasons.length, initialSeason])
 
   const currentSeasonEps = useMemo(
     () => seasons.find((s) => s.season === selectedSeason)?.episodes ?? [],
     [seasons, selectedSeason]
   )
+
+  // Probe durations for episodes in the current season that don't have one yet
+  useEffect(() => {
+    const needsProbe = currentSeasonEps.filter((ep) => !ep.duration_seconds && !probedRef.current.has(ep.path))
+    if (!needsProbe.length) return
+    needsProbe.forEach((ep) => probedRef.current.add(ep.path))
+    Promise.all(needsProbe.map((ep) => window.api.getDuration(ep.path).then((dur) => ({ path: ep.path, dur }))))
+      .then((results) => {
+        const updates: Record<string, number> = {}
+        for (const r of results) { if (r.dur > 0) updates[r.path] = r.dur }
+        if (Object.keys(updates).length) setLocalDurations((prev) => ({ ...prev, ...updates }))
+      })
+  }, [currentSeasonEps])
 
   const watchedCount = eps.filter((e) => e.watched).length
 
@@ -82,7 +103,9 @@ export default function ShowDetail({ show, onClose }: Props) {
       state: {
         path: ep.path,
         isEpisode: true,
-        durationSeconds: ep.duration_seconds,
+        durationSeconds: ep.duration_seconds || localDurations[ep.path],
+        showId: show.id,
+        seasonNumber: ep.season,
         title: `${show.title} — ${ep.season > 0 ? `S${String(ep.season).padStart(2, '0')}` : ''}${ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : ''} ${ep.title ?? ''}`.trim()
       }
     })
@@ -190,7 +213,7 @@ export default function ShowDetail({ show, onClose }: Props) {
           <div className="season-picker">
             <div className="season-picker-toolbar">
               {continueEp && (
-                <button className="continue-btn" onClick={() => playEpisode(continueEp)}>
+                <button className="continue-btn" style={{ marginTop: 0 }} onClick={() => playEpisode(continueEp)}>
                   ▶ Continue{' '}
                   {continueEp.episode_number != null
                     ? `S${String(continueEp.season).padStart(2, '0')}E${String(continueEp.episode_number).padStart(2, '0')}`
@@ -249,7 +272,7 @@ export default function ShowDetail({ show, onClose }: Props) {
               )}
 
               {continueEp && (
-                <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px' }} onClick={() => playEpisode(continueEp)}>
+                <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(continueEp)}>
                   ▶ Continue
                 </button>
               )}
@@ -290,9 +313,7 @@ export default function ShowDetail({ show, onClose }: Props) {
                     {ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : '—'}
                   </span>
                   <span className="ep-title">{ep.title ?? ep.path.split('/').pop()}</span>
-                  {ep.duration_seconds && ep.duration_seconds > 0 && (
-                    <span className="ep-duration">{formatDur(ep.duration_seconds)}</span>
-                  )}
+                  {(() => { const d = ep.duration_seconds || localDurations[ep.path]; return d && d > 0 ? <span className="ep-duration">{formatDur(d)}</span> : null })()}
                   {bookmarks[ep.path] && (
                     <span className="ep-bookmark" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                       🔖
