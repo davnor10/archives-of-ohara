@@ -896,6 +896,33 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   white-space: pre-line;
 }
 
+.bookmark-toast {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(201, 168, 76, 0.92);
+  color: #0a1628;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 16px;
+  border-radius: 20px;
+  pointer-events: none;
+  z-index: 20;
+  white-space: nowrap;
+  animation: bookmark-toast-in 0.18s ease-out, bookmark-toast-out 0.3s ease-in 1.5s forwards;
+}
+
+@keyframes bookmark-toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes bookmark-toast-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
 .player-back-btn {
   position: absolute;
   top: 16px;

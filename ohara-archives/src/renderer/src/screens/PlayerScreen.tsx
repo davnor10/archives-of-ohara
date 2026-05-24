@@ -99,6 +99,7 @@ export default function PlayerScreen() {
   const [showAudioMenu, setShowAudioMenu] = useState(false)
 
   const [videoError, setVideoError] = useState<string | null>(null)
+  const [bookmarkToast, setBookmarkToast] = useState(false)
   const [isTranscoded, setIsTranscoded] = useState(false)
   const [seekOffset, setSeekOffset] = useState(0)
   const [showFrozenFrame, setShowFrozenFrame] = useState(false)
@@ -475,6 +476,12 @@ export default function PlayerScreen() {
           </div>
         )}
 
+        {bookmarkToast && (
+          <div className="bookmark-toast">
+            🔖 Bookmarked
+          </div>
+        )}
+
         <div
           className={`player-controls ${controlsVisible ? '' : 'hidden'}`}
           onClick={(e) => e.stopPropagation()}
@@ -625,7 +632,11 @@ export default function PlayerScreen() {
             )}
 
             <button className="player-btn" onClick={() => {
-              if (path) window.api.saveBookmark(path, played * duration)
+              if (path) {
+                window.api.saveBookmark(path, played * duration)
+                setBookmarkToast(true)
+                setTimeout(() => setBookmarkToast(false), 1800)
+              }
             }} title="Save bookmark">
               🔖
             </button>
