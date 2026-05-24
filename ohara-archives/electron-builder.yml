@@ -13,8 +13,8 @@ asarUnpack:
   - resources/**
 npmRebuild: false
 publish:
-  provider: github
-  releaseType: draft
+  provider: generic
+  url: ""
 
 win:
   executableName: archives-of-ohara

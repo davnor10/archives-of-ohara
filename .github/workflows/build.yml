@@ -41,8 +41,6 @@ jobs:
       - name: Build
         working-directory: ohara-archives
         run: npm run ${{ matrix.script }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
