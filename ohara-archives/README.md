@@ -1,10 +1,12 @@
 # Archives of Ohara
 
-An Electron application with React and TypeScript
+An Electron application with React and TypeScript.
 
-## Recommended IDE Setup
+## Movie nights are fun!
 
-- [VSCode](https://code.visualstudio.com/) + [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) + [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode)
+Archives of Ohara provides a nice and elegant GUI for all your very legal video content. You can watch your favorite series and movies, track which episodes you have watched, and use the randomized picker to watch a movie or a series, or even a random episode of your favorite sitcom!
+
+In the settings, insert a path to your series folder, and to your movies folder (seperated from one another), and for added content (images, ratings, tags and more) sign to the free database TMDB and insert your API key.
 
 ## Project Setup
 
