@@ -1,0 +1,57 @@
+name: Build Installers
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            script: build:linux
+            name: linux
+          - os: windows-latest
+            script: build:win
+            name: windows
+          - os: macos-latest
+            script: build:mac
+            name: macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ohara-archives/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ohara-archives
+        run: npm install
+
+      - name: Build
+        working-directory: ohara-archives
+        run: npm run ${{ matrix.script }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            ohara-archives/dist/*.AppImage
+            ohara-archives/dist/*.deb
+            ohara-archives/dist/*.exe
+            ohara-archives/dist/*.dmg
+          if-no-files-found: warn
+          retention-days: 14

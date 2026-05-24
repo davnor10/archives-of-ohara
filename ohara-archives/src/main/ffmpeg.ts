@@ -6,7 +6,8 @@ import { app } from 'electron'
 function getFfmpegPath(): string {
   // Production: binary copied into app resources
   if (app.isPackaged) {
-    const bundled = join(process.resourcesPath, 'ffmpeg')
+    const exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
+    const bundled = join(process.resourcesPath, exe)
     if (existsSync(bundled)) return bundled
   }
   // Dev: use ffmpeg-static from node_modules
