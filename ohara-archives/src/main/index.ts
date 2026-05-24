@@ -342,6 +342,9 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('needs-transcode', async (_e, videoPath: string, audioIdx: number) => {
+    // Must mirror the protocol handler's logic — if we always transcode this ext,
+    // the player must know so it uses seekOffset (re-spawn) instead of currentTime (range request)
+    if (ALWAYS_TRANSCODE_EXTS.has(extname(videoPath).toLowerCase())) return true
     try {
       const streams = await getCachedStreams(videoPath)
       return needsTranscode(streams, audioIdx)
