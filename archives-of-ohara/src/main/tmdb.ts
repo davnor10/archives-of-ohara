@@ -133,14 +133,14 @@ export async function fetchTmdbMetadata(): Promise<void> {
 
   // Items without poster/TMDB data that haven't been pinned by the user
   const needsFetch = db
-    .prepare<[], { id: number; title: string; type: 'movie' | 'show'; year: number | null }>(
-      `SELECT id, title, type, year FROM media_items
+    .prepare<[], { id: number; title: string; title_override: string | null; type: 'movie' | 'show'; year: number | null }>(
+      `SELECT id, title, title_override, type, year FROM media_items
        WHERE (poster_base64 IS NULL OR tmdb_id IS NULL) AND pinned_tmdb_id IS NULL`
     )
     .all()
 
   for (const item of needsFetch) {
-    await enrichItem({ id: item.id, title: item.title, type: item.type, year: item.year ?? undefined }, apiKey)
+    await enrichItem({ id: item.id, title: item.title_override ?? item.title, type: item.type, year: item.year ?? undefined }, apiKey)
     await new Promise((r) => setTimeout(r, 250))
   }
 

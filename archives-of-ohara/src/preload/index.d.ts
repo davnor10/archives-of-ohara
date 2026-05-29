@@ -2,6 +2,7 @@ export interface MediaItem {
   id: number
   type: 'movie' | 'show'
   title: string
+  title_override?: string | null
   path: string
   year?: number
   overview?: string
@@ -12,6 +13,7 @@ export interface MediaItem {
   duration_seconds?: number
   last_watched_at?: string
   favorite?: number // 1 if favorited, 0 or absent otherwise
+  auto_subtitle?: number | null // NULL = use global, 0 = off, 1 = on
 }
 
 export interface Episode {
@@ -68,7 +70,7 @@ export interface AppSettings {
   theme?: string
   auto_bookmark?: boolean
   auto_subtitle?: boolean
-  subtitle_size?: 'small' | 'medium' | 'large'
+  subtitle_size?: 'small' | 'medium' | 'large' | 'xl' | 'xxl'
   subtitle_color?: string
   subtitle_bg?: boolean
   subtitle_sync_step?: number
@@ -108,6 +110,8 @@ export interface OharaAPI {
   setFavorite: (mediaId: number, fav: boolean) => Promise<void>
   searchTmdb: (title: string, type: 'movie' | 'show') => Promise<TmdbResult[]>
   setTmdb: (mediaId: number, tmdbId: number, type: 'movie' | 'show') => Promise<string | null>
+  setTitleOverride: (mediaId: number, override: string | null) => Promise<void>
+  setSeriesSubtitle: (mediaId: number, value: number | null) => Promise<void>
 }
 
 declare global {

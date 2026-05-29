@@ -6,8 +6,12 @@ import PageWrapper from '../components/PageWrapper'
 import SearchFilterBar, { type SortKey } from '../components/SearchFilterBar'
 import type { MediaItem } from '../../../preload/index.d'
 
-function titleSortKey(title: string): string {
-  return title.replace(/^the\s+/i, '')
+function displayTitle(item: MediaItem): string {
+  return item.title_override ?? item.title
+}
+
+function titleSortKey(item: MediaItem): string {
+  return displayTitle(item).replace(/^the\s+/i, '')
 }
 
 function compareItems(a: MediaItem, b: MediaItem, sort: SortKey, asc: boolean): number {
@@ -19,7 +23,7 @@ function compareItems(a: MediaItem, b: MediaItem, sort: SortKey, asc: boolean): 
     if (!b.last_watched_at) return -1
     return asc ? a.last_watched_at.localeCompare(b.last_watched_at) : b.last_watched_at.localeCompare(a.last_watched_at)
   }
-  const ka = titleSortKey(a.title), kb = titleSortKey(b.title)
+  const ka = titleSortKey(a), kb = titleSortKey(b)
   return asc ? ka.localeCompare(kb) : kb.localeCompare(ka)
 }
 
@@ -44,7 +48,7 @@ export default function MoviesScreen() {
 
   const filtered = useMemo(() => {
     const base = movies.filter((movie) => {
-      if (query && !movie.title.toLowerCase().includes(query.toLowerCase())) return false
+      if (query && !displayTitle(movie).toLowerCase().includes(query.toLowerCase())) return false
       if (activeTags.length === 0) return true
       const itemTags = mediaTags[movie.id] ?? []
       return filterMode === 'or'
@@ -58,7 +62,7 @@ export default function MoviesScreen() {
     navigate('/player', {
       state: {
         path: movie.path,
-        title: movie.title,
+        title: displayTitle(movie),
         year: movie.year,
         durationSeconds: movie.duration_seconds
       }

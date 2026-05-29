@@ -65,7 +65,12 @@ const api = {
   searchTmdb: (title: string, type: string): Promise<unknown[]> =>
     ipcRenderer.invoke('search-tmdb', title, type),
   setTmdb: (mediaId: number, tmdbId: number, type: string): Promise<string | null> =>
-    ipcRenderer.invoke('set-tmdb', mediaId, tmdbId, type)
+    ipcRenderer.invoke('set-tmdb', mediaId, tmdbId, type),
+
+  setTitleOverride: (mediaId: number, override: string | null): Promise<void> =>
+    ipcRenderer.invoke('set-title-override', mediaId, override),
+  setSeriesSubtitle: (mediaId: number, value: number | null): Promise<void> =>
+    ipcRenderer.invoke('set-series-subtitle', mediaId, value),
 }
 
 if (process.contextIsolated) {

@@ -11,7 +11,7 @@ interface Props {
 
 export default function PosterPickerModal({ item, onClose }: Props) {
   const { updateItemPoster, settings } = useStore()
-  const [query, setQuery] = useState(item.title)
+  const [query, setQuery] = useState(item.title_override ?? item.title)
   const [results, setResults] = useState<TmdbResult[]>([])
   const [loading, setLoading] = useState(false)
   const [applyingId, setApplyingId] = useState<number | null>(null)
@@ -45,7 +45,7 @@ export default function PosterPickerModal({ item, onClose }: Props) {
   }
 
   useEffect(() => {
-    search(item.title)
+    search(item.title_override ?? item.title)
     setTimeout(() => inputRef.current?.focus(), 50)
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)

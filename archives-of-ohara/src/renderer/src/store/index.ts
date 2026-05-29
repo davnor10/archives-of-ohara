@@ -32,6 +32,8 @@ interface AppStore {
   setMediaTags: (mediaId: number, tagIds: number[]) => Promise<void>
   updateItemPoster: (mediaId: number, type: 'movie' | 'show', posterBase64: string) => void
   setFavorite: (mediaId: number, type: 'movie' | 'show', fav: boolean) => Promise<void>
+  setTitleOverride: (mediaId: number, type: 'movie' | 'show', override: string | null) => Promise<void>
+  setSeriesSubtitle: (mediaId: number, value: number | null) => Promise<void>
 }
 
 export const useStore = create<AppStore>((set, get) => ({
@@ -182,5 +184,20 @@ export const useStore = create<AppStore>((set, get) => ({
     } else {
       set((s) => ({ shows: s.shows.map(patch) }))
     }
-  }
+  },
+
+  setTitleOverride: async (mediaId: number, type: 'movie' | 'show', override: string | null) => {
+    await window.api.setTitleOverride(mediaId, override)
+    const patch = (item: MediaItem) => item.id === mediaId ? { ...item, title_override: override } : item
+    if (type === 'movie') {
+      set((s) => ({ movies: s.movies.map(patch) }))
+    } else {
+      set((s) => ({ shows: s.shows.map(patch) }))
+    }
+  },
+
+  setSeriesSubtitle: async (mediaId: number, value: number | null) => {
+    await window.api.setSeriesSubtitle(mediaId, value)
+    set((s) => ({ shows: s.shows.map((sh) => sh.id === mediaId ? { ...sh, auto_subtitle: value } : sh) }))
+  },
 }))

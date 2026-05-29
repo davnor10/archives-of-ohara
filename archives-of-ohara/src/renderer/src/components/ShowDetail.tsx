@@ -13,14 +13,34 @@ interface Props {
 }
 
 export default function ShowDetail({ show, onClose, initialSeason }: Props) {
-  const { episodes, loadEpisodes, reloadEpisodes, setEpisodeWatched, tags, mediaTags, updateLastWatched } = useStore()
+  const { episodes, loadEpisodes, reloadEpisodes, setEpisodeWatched, tags, mediaTags, updateLastWatched, setTitleOverride, setSeriesSubtitle } = useStore()
   const [bookmarks, setBookmarks] = useState<Record<string, number>>({})
   const [continueEp, setContinueEp] = useState<Episode | null>(null)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [editingTags, setEditingTags] = useState(false)
   const [localDurations, setLocalDurations] = useState<Record<string, number>>({})
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleInput, setTitleInput] = useState('')
   const probedRef = useRef<Set<string>>(new Set())
   const navigate = useNavigate()
+
+  const displayTitle = show.title_override ?? show.title
+
+  const handleEditTitle = () => {
+    setTitleInput(show.title_override ?? show.title)
+    setEditingTitle(true)
+  }
+
+  const handleSaveTitleOverride = async () => {
+    const val = titleInput.trim()
+    await setTitleOverride(show.id, 'show', val === show.title ? null : val || null)
+    setEditingTitle(false)
+  }
+
+  const handleClearTitleOverride = async () => {
+    await setTitleOverride(show.id, 'show', null)
+    setEditingTitle(false)
+  }
 
   const showTagIds = mediaTags[show.id] ?? []
   const showTags = showTagIds.map((id) => tags.find((t) => t.id === id)).filter(Boolean) as typeof tags
@@ -111,7 +131,8 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
         durationSeconds: ep.duration_seconds || localDurations[ep.path],
         showId: show.id,
         seasonNumber: ep.season,
-        title: `${show.title} — ${ep.season > 0 && seasons.length > 1 ? `S${String(ep.season).padStart(2, '0')}` : ''}${ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : ''} ${ep.title ?? ''}`.trim()
+        autoSubtitleOverride: show.auto_subtitle ?? null,
+        title: `${displayTitle} — ${ep.season > 0 && seasons.length > 1 ? `S${String(ep.season).padStart(2, '0')}` : ''}${ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : ''} ${ep.title ?? ''}`.trim()
       }
     })
   }
@@ -179,7 +200,32 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
           </div>
 
           <div className="show-detail-info">
-            <div className="show-detail-title">{show.title}</div>
+            <div className="show-detail-title-row">
+              <div className="show-detail-title">{displayTitle}</div>
+              <button className="title-edit-btn" onClick={handleEditTitle} title="Override title">✎</button>
+            </div>
+
+            {editingTitle && (
+              <div className="title-override-row">
+                <input
+                  className="settings-input title-override-input"
+                  value={titleInput}
+                  autoFocus
+                  onChange={(e) => setTitleInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitleOverride()
+                    if (e.key === 'Escape') setEditingTitle(false)
+                  }}
+                  placeholder={show.title}
+                />
+                <button className="btn btn-primary btn-sm" onClick={handleSaveTitleOverride}>Save</button>
+                {show.title_override && (
+                  <button className="btn btn-ghost btn-sm" onClick={handleClearTitleOverride}>Clear</button>
+                )}
+                <button className="btn btn-ghost btn-sm" onClick={() => setEditingTitle(false)}>✕</button>
+              </div>
+            )}
+
             <div className="show-detail-meta">
               {show.year && <span>{show.year} · </span>}
               {show.rating != null && show.rating > 0 && (
@@ -202,6 +248,25 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
             {show.overview && (
               <div className="show-detail-overview">{show.overview}</div>
             )}
+
+            <div className="series-subtitle-toggle">
+              <span className="series-subtitle-label">Subtitles</span>
+              <button
+                className={`btn btn-sm ${show.auto_subtitle == null ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSeriesSubtitle(show.id, null)}
+                title="Use global subtitle setting"
+              >Global</button>
+              <button
+                className={`btn btn-sm ${show.auto_subtitle === 1 ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSeriesSubtitle(show.id, 1)}
+                title="Always auto-play subtitles for this series"
+              >On</button>
+              <button
+                className={`btn btn-sm ${show.auto_subtitle === 0 ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSeriesSubtitle(show.id, 0)}
+                title="Never auto-play subtitles for this series"
+              >Off</button>
+            </div>
 
             <div className="show-detail-tags-row">
               {showTags.map((tag) => (

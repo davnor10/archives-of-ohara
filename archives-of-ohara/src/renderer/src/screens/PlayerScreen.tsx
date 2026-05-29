@@ -11,6 +11,7 @@ interface PlayerState {
   durationSeconds?: number
   showId?: number
   seasonNumber?: number
+  autoSubtitleOverride?: number | null
 }
 
 interface VttCue {
@@ -67,7 +68,7 @@ export default function PlayerScreen() {
   const location = useLocation()
   const navigate = useNavigate()
   const state = location.state as PlayerState | null
-  const { path, title, isEpisode, durationSeconds, showId, seasonNumber } = state ?? { path: '', title: '' }
+  const { path, title, isEpisode, durationSeconds, showId, seasonNumber, autoSubtitleOverride } = state ?? { path: '', title: '' }
   const { settings, saveSettings, updateLastWatched, loadBookmarks } = useStore()
   const lastWatchedCalledRef = useRef(false)
 
@@ -223,8 +224,10 @@ export default function PlayerScreen() {
   }, [subtitles, path])
 
   // ── Auto-select first subtitle on load ────────────────────────────────────
+  // Per-series override takes priority: 1 = on, 0 = off, null/undefined = use global
+  const effectiveAutoSub = autoSubtitleOverride != null ? Boolean(autoSubtitleOverride) : settings.auto_subtitle
   useEffect(() => {
-    if (autoSubDoneRef.current || !settings.auto_subtitle || subtitles.length === 0) return
+    if (autoSubDoneRef.current || !effectiveAutoSub || subtitles.length === 0) return
     autoSubDoneRef.current = true
     if (subtitles[0].streamIndex != null) {
       activateEmbeddedSub(0)
@@ -232,7 +235,7 @@ export default function PlayerScreen() {
       setActiveSubIdx(0)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subtitles.length, settings.auto_subtitle])
+  }, [subtitles.length, effectiveAutoSub])
 
   // ── Auto-save bookmark every 10s ──────────────────────────────────────────
   useEffect(() => {
@@ -534,7 +537,7 @@ export default function PlayerScreen() {
           <div
             className="subtitle-overlay"
             style={{
-              fontSize: settings.subtitle_size === 'small' ? 16 : settings.subtitle_size === 'large' ? 30 : 22,
+              fontSize: settings.subtitle_size === 'small' ? 16 : settings.subtitle_size === 'large' ? 30 : settings.subtitle_size === 'xl' ? 42 : settings.subtitle_size === 'xxl' ? 56 : 22,
               color: settings.subtitle_color ?? '#ffffff',
               background: settings.subtitle_bg ? 'rgba(0,0,0,0.7)' : undefined,
               padding: settings.subtitle_bg ? '2px 12px' : undefined,

@@ -67,6 +67,8 @@ try { db.exec('ALTER TABLE media_items ADD COLUMN duration_seconds REAL') } catc
 try { db.exec('ALTER TABLE media_items ADD COLUMN last_watched_at TEXT') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN pinned_tmdb_id INTEGER') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN favorite INTEGER DEFAULT 0') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE media_items ADD COLUMN title_override TEXT') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE media_items ADD COLUMN auto_subtitle INTEGER') } catch { /* column exists */ }
 
 // Seed default tags once
 const DEFAULT_TAGS = [

@@ -26,7 +26,7 @@ export default function SettingsScreen() {
   const [selectedTheme, setSelectedTheme] = useState('ocean')
   const [autoBookmark, setAutoBookmark] = useState(true)
   const [autoSubtitle, setAutoSubtitle] = useState(false)
-  const [subtitleSize, setSubtitleSize] = useState<'small' | 'medium' | 'large'>('medium')
+  const [subtitleSize, setSubtitleSize] = useState<'small' | 'medium' | 'large' | 'xl' | 'xxl'>('medium')
   const [subtitleColor, setSubtitleColor] = useState('#ffffff')
   const [subtitleBg, setSubtitleBg] = useState(false)
   const [uiScale, setUiScale] = useState(1.0)
@@ -239,7 +239,7 @@ export default function SettingsScreen() {
             type="range"
             className="ui-scale-slider"
             min={0.75}
-            max={1.75}
+            max={2.5}
             step={0.05}
             value={uiScale}
             onChange={(e) => {
@@ -248,15 +248,15 @@ export default function SettingsScreen() {
               window.api.setZoom(v)
             }}
             style={{
-              background: `linear-gradient(to right, var(--teal-light) 0%, var(--teal-light) ${((uiScale - 0.75) / 1.0) * 100}%, rgba(255,255,255,0.15) ${((uiScale - 0.75) / 1.0) * 100}%, rgba(255,255,255,0.15) 100%)`,
+              background: `linear-gradient(to right, var(--teal-light) 0%, var(--teal-light) ${((uiScale - 0.75) / 1.75) * 100}%, rgba(255,255,255,0.15) ${((uiScale - 0.75) / 1.75) * 100}%, rgba(255,255,255,0.15) 100%)`,
             }}
           />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, color: 'var(--text-dim)', fontSize: 11 }}>
             <span>75%</span>
             <span>100%</span>
-            <span>125%</span>
             <span>150%</span>
-            <span>175%</span>
+            <span>200%</span>
+            <span>250%</span>
           </div>
           <div style={{ textAlign: 'center', marginTop: 10, color: 'var(--seafoam)', fontSize: 13, fontWeight: 600 }}>
             {Math.round(uiScale * 100)}%
@@ -307,15 +307,20 @@ export default function SettingsScreen() {
 
         <div style={{ marginBottom: 16 }}>
           <label className="settings-label">Size</label>
-          <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-            {(['small', 'medium', 'large'] as const).map((s) => (
+          <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+            {([
+              { value: 'small',  label: 'Small'  },
+              { value: 'medium', label: 'Medium' },
+              { value: 'large',  label: 'Large'  },
+              { value: 'xl',     label: 'XL'     },
+              { value: 'xxl',    label: 'XXL'    },
+            ] as const).map(({ value, label }) => (
               <button
-                key={s}
-                className={`btn ${subtitleSize === s ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setSubtitleSize(s)}
-                style={{ textTransform: 'capitalize' }}
+                key={value}
+                className={`btn ${subtitleSize === value ? 'btn-primary' : 'btn-ghost'}`}
+                onClick={() => setSubtitleSize(value)}
               >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
+                {label}
               </button>
             ))}
           </div>
@@ -365,7 +370,7 @@ export default function SettingsScreen() {
         <div style={{ background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '24px 16px', textAlign: 'center' }}>
           <div style={{ color: 'var(--text-dim)', fontSize: 11, marginBottom: 12 }}>Preview</div>
           <span style={{
-            fontSize: subtitleSize === 'small' ? 16 : subtitleSize === 'large' ? 30 : 22,
+            fontSize: subtitleSize === 'small' ? 16 : subtitleSize === 'large' ? 30 : subtitleSize === 'xl' ? 42 : subtitleSize === 'xxl' ? 56 : 22,
             color: subtitleColor,
             fontWeight: 500,
             textShadow: '0 1px 4px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9)',

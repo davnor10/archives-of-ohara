@@ -53,14 +53,14 @@ export default function MediaCard({ item, hasBookmark, onRemoveBookmark, onClick
 
   return (
     <>
-      <div ref={cardRef} className="media-card" onClick={onClick} title={item.title}>
+      <div ref={cardRef} className="media-card" onClick={onClick} title={item.title_override ?? item.title}>
         {item.poster_base64 ? (
-          <img className="media-card-poster" src={item.poster_base64} alt={item.title} loading="lazy" />
+          <img className="media-card-poster" src={item.poster_base64} alt={item.title_override ?? item.title} loading="lazy" />
         ) : (
-          <PlaceholderPoster title={item.title} />
+          <PlaceholderPoster title={item.title_override ?? item.title} />
         )}
         <div className="media-card-info">
-          <div className="media-card-title">{item.title}</div>
+          <div className="media-card-title">{item.title_override ?? item.title}</div>
           <div className="media-card-meta">
             {item.year && <span>{item.year}</span>}
             {item.rating != null && item.rating > 0 && (

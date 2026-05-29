@@ -347,6 +347,13 @@ app.whenReady().then(async () => {
     return applyTmdbEntry(mediaId, tmdbId, type)
   })
 
+  ipcMain.handle('set-title-override', (_e, mediaId: number, override: string | null) => {
+    db.prepare('UPDATE media_items SET title_override=? WHERE id=?').run(override ?? null, mediaId)
+  })
+  ipcMain.handle('set-series-subtitle', (_e, mediaId: number, value: number | null) => {
+    db.prepare('UPDATE media_items SET auto_subtitle=? WHERE id=?').run(value, mediaId)
+  })
+
   ipcMain.handle('file-exists', (_e, filePath: string) => existsSync(filePath))
   ipcMain.handle('set-favorite', (_e, mediaId: number, fav: boolean) => {
     db.prepare('UPDATE media_items SET favorite=? WHERE id=?').run(fav ? 1 : 0, mediaId)
