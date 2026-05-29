@@ -86,7 +86,7 @@ Requires **Node.js 22**.
 
 ```bash
 git clone https://github.com/davnor10/archives-of-ohara.git
-cd archives-of-ohara/ohara-archives
+cd archives-of-ohara/archives-of-ohara
 npm install
 npm run dev        # development (requires Node 22)
 npm run build      # production build

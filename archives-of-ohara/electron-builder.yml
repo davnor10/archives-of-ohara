@@ -1,0 +1,55 @@
+appId: com.archives-of-ohara
+productName: Archives of Ohara
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+npmRebuild: false
+publish:
+  provider: generic
+  url: ""
+
+win:
+  executableName: archives-of-ohara
+  extraResources:
+    - from: "node_modules/ffmpeg-static/ffmpeg.exe"
+      to: "ffmpeg.exe"
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+
+mac:
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: false
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  extraResources:
+    - from: "node_modules/ffmpeg-static/ffmpeg"
+      to: "ffmpeg"
+dmg:
+  artifactName: ${name}-${version}.${ext}
+
+linux:
+  target:
+    - AppImage
+    - deb
+  maintainer: electronjs.org
+  category: Utility
+  icon: build/icon.png
+  extraResources:
+    - from: "node_modules/ffmpeg-static/ffmpeg"
+      to: "ffmpeg"
+appImage:
+  artifactName: ${name}-${version}.${ext}
