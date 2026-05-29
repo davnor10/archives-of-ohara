@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write   # needed to create/update releases
+
 jobs:
   build:
     strategy:
@@ -42,16 +45,32 @@ jobs:
         working-directory: archives-of-ohara
         run: npm run ${{ matrix.script }}
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4.6.2
-        with:
-          name: ${{ matrix.name }}
-          path: |
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./archives-of-ohara/package.json').version")
+          TAG="v${VERSION}"
+
+          # Create the release if it doesn't exist yet; ignore the error if it does
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Archives of Ohara $TAG" \
+            --notes "Release $TAG" \
+            2>/dev/null || true
+
+          # Upload this platform's files (--clobber overwrites if re-running)
+          shopt -s nullglob
+          FILES=(
             archives-of-ohara/dist/*.AppImage
             archives-of-ohara/dist/*.deb
             archives-of-ohara/dist/*.exe
             archives-of-ohara/dist/*.dmg
             archives-of-ohara/dist/*.zip
-          if-no-files-found: warn
-          retention-days: 3
-          overwrite: true
+          )
+          if [ ${#FILES[@]} -gt 0 ]; then
+            gh release upload "$TAG" "${FILES[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          fi
