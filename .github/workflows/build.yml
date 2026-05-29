@@ -32,14 +32,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: ohara-archives/package-lock.json
+          cache-dependency-path: archives-of-ohara/package-lock.json
 
       - name: Install dependencies
-        working-directory: ohara-archives
+        working-directory: archives-of-ohara
         run: npm install
 
       - name: Build
-        working-directory: ohara-archives
+        working-directory: archives-of-ohara
         run: npm run ${{ matrix.script }}
 
       - name: Upload artifacts
@@ -47,9 +47,11 @@ jobs:
         with:
           name: ${{ matrix.name }}
           path: |
-            ohara-archives/dist/*.AppImage
-            ohara-archives/dist/*.deb
-            ohara-archives/dist/*.exe
-            ohara-archives/dist/*.dmg
+            archives-of-ohara/dist/*.AppImage
+            archives-of-ohara/dist/*.deb
+            archives-of-ohara/dist/*.exe
+            archives-of-ohara/dist/*.dmg
+            archives-of-ohara/dist/*.zip
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 3
+          overwrite: true
