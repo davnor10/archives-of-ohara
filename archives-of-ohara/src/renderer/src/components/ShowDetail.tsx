@@ -13,7 +13,7 @@ interface Props {
 }
 
 export default function ShowDetail({ show, onClose, initialSeason }: Props) {
-  const { episodes, loadEpisodes, tags, mediaTags, updateLastWatched } = useStore()
+  const { episodes, loadEpisodes, reloadEpisodes, setEpisodeWatched, tags, mediaTags, updateLastWatched } = useStore()
   const [bookmarks, setBookmarks] = useState<Record<string, number>>({})
   const [continueEp, setContinueEp] = useState<Episode | null>(null)
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
@@ -60,7 +60,6 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
       .sort((a, b) => a.season - b.season)
   }, [eps])
 
-  // Auto-select season: prefer initialSeason, then auto-select if only one
   useEffect(() => {
     if (!seasons.length) return
     if (initialSeason != null && seasons.some((s) => s.season === initialSeason)) {
@@ -75,7 +74,6 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
     [seasons, selectedSeason]
   )
 
-  // Probe durations for episodes in the current season that don't have one yet
   useEffect(() => {
     const needsProbe = currentSeasonEps.filter((ep) => !ep.duration_seconds && !probedRef.current.has(ep.path))
     if (!needsProbe.length) return
@@ -89,6 +87,13 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
   }, [currentSeasonEps])
 
   const watchedCount = eps.filter((e) => e.watched).length
+  const watchedPct = eps.length > 0 ? (watchedCount / eps.length) * 100 : 0
+
+  // First unwatched episode in the current season
+  const nextUpEp = useMemo(
+    () => currentSeasonEps.find((ep) => !ep.watched) ?? null,
+    [currentSeasonEps]
+  )
 
   const removeEpBookmark = async (e: React.MouseEvent, ep: Episode) => {
     e.stopPropagation()
@@ -127,15 +132,21 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
 
   const toggleWatched = async (e: React.MouseEvent, ep: Episode) => {
     e.stopPropagation()
-    await window.api.markWatched(ep.path, !ep.watched)
-    loadEpisodes(show.id)
+    const newWatched = !ep.watched
+    // Optimistic update — instant feedback, no reload needed
+    setEpisodeWatched(show.id, ep.path, newWatched)
+    await window.api.markWatched(ep.path, newWatched)
   }
 
   const markSeason = async (pool: Episode[], watched: boolean) => {
-    for (const ep of pool) {
-      if (ep.watched !== watched) await window.api.markWatched(ep.path, watched)
-    }
-    loadEpisodes(show.id)
+    const toUpdate = pool.filter((ep) => Boolean(ep.watched) !== watched)
+    if (!toUpdate.length) return
+    // Optimistic bulk update
+    for (const ep of toUpdate) setEpisodeWatched(show.id, ep.path, watched)
+    // Fire all IPC calls in parallel
+    await Promise.all(toUpdate.map((ep) => window.api.markWatched(ep.path, watched)))
+    // Reload to confirm DB state
+    reloadEpisodes(show.id)
   }
 
   const showSeasonPicker = selectedSeason === null && seasons.length > 1
@@ -177,10 +188,17 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
               <span>
                 {seasons.length} Season{seasons.length !== 1 ? 's' : ''} · {eps.length} Episode{eps.length !== 1 ? 's' : ''}
               </span>
-              {eps.length > 0 && (
-                <span className="watched-progress"> · {watchedCount}/{eps.length} watched</span>
-              )}
             </div>
+
+            {eps.length > 0 && (
+              <div className="show-progress-wrap">
+                <div className="show-progress-track">
+                  <div className="show-progress-fill" style={{ width: `${watchedPct}%` }} />
+                </div>
+                <span className="watched-progress">{watchedCount}/{eps.length} watched</span>
+              </div>
+            )}
+
             {show.overview && (
               <div className="show-detail-overview">{show.overview}</div>
             )}
@@ -228,19 +246,27 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
             <div className="season-grid">
               {seasons.map(({ season, episodes: seasonEps }) => {
                 const sw = seasonEps.filter((e) => e.watched).length
+                const pct = seasonEps.length > 0 ? (sw / seasonEps.length) * 100 : 0
+                const allWatched = sw === seasonEps.length
                 return (
                   <div key={season} className="season-card" onClick={() => setSelectedSeason(season)}>
-                    <div className="season-card-label">Season {season}</div>
+                    <div className="season-card-label">
+                      Season {season}
+                      {allWatched && <span className="season-card-done">✓</span>}
+                    </div>
+                    <div className="season-card-progress-track">
+                      <div className="season-card-progress-fill" style={{ width: `${pct}%` }} />
+                    </div>
                     <div className="season-card-stats">
                       {seasonEps.length} ep{seasonEps.length !== 1 ? 's' : ''}
-                      <span className="season-card-watched">{sw}/{seasonEps.length} watched</span>
+                      <span className="season-card-watched">{sw}/{seasonEps.length}</span>
                     </div>
                     <button
                       className="season-card-random"
                       title="Random episode from this season"
                       onClick={(e) => { e.stopPropagation(); playRandom(seasonEps) }}
                     >
-                      🎲 Random
+                      🎲
                     </button>
                   </div>
                 )
@@ -296,38 +322,62 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
             </div>
 
             <div className="episode-list">
-              {currentSeasonEps.map((ep) => (
-                <div
-                  key={ep.id}
-                  className={`episode-row ${ep.watched ? 'episode-watched' : ''}`}
-                  onClick={() => playEpisode(ep)}
-                >
-                  <button
-                    className={`ep-watch-toggle ${ep.watched ? 'watched' : ''}`}
-                    onClick={(e) => toggleWatched(e, ep)}
-                    title={ep.watched ? 'Mark unwatched' : 'Mark watched'}
+              {currentSeasonEps.map((ep) => {
+                const dur = ep.duration_seconds || localDurations[ep.path]
+                const bm = bookmarks[ep.path]
+                const bmPct = bm && dur && dur > 0 ? Math.min(100, (bm / dur) * 100) : 0
+                const isNextUp = ep.id === nextUpEp?.id
+
+                return (
+                  <div
+                    key={ep.id}
+                    className={`episode-row${ep.watched ? ' episode-watched' : ''}${isNextUp ? ' episode-next-up' : ''}`}
+                    onClick={() => playEpisode(ep)}
                   >
-                    {ep.watched ? '✓' : '○'}
-                  </button>
-                  <span className="ep-num">
-                    {ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : '—'}
-                  </span>
-                  <span className="ep-title">{ep.title ?? ep.path.split('/').pop()}</span>
-                  {(() => { const d = ep.duration_seconds || localDurations[ep.path]; return d && d > 0 ? <span className="ep-duration">{formatDur(d)}</span> : null })()}
-                  {bookmarks[ep.path] && (
-                    <span className="ep-bookmark" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      🔖
-                      <button
-                        className="ep-bookmark-remove"
-                        onClick={(e) => removeEpBookmark(e, ep)}
-                        title="Remove bookmark"
-                      >
-                        ×
-                      </button>
+                    <button
+                      className={`ep-watch-toggle${ep.watched ? ' watched' : ''}`}
+                      onClick={(e) => toggleWatched(e, ep)}
+                      title={ep.watched ? 'Mark unwatched' : 'Mark watched'}
+                    >
+                      {ep.watched ? '✓' : '○'}
+                    </button>
+
+                    <span className="ep-num">
+                      {ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : '—'}
                     </span>
-                  )}
-                </div>
-              ))}
+
+                    <div className="ep-title-wrap">
+                      <span className="ep-title">{ep.title ?? ep.path.split('/').pop()}</span>
+                      {bmPct > 0 && (
+                        <div className="ep-progress-track">
+                          <div className="ep-progress-fill" style={{ width: `${bmPct}%` }} />
+                        </div>
+                      )}
+                    </div>
+
+                    {isNextUp && !ep.watched && (
+                      <span className="ep-next-up-badge">Next</span>
+                    )}
+
+                    {dur && dur > 0 && (
+                      <span className="ep-duration">{formatDur(dur)}</span>
+                    )}
+
+                    {bm && (
+                      <span className="ep-bookmark" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        🔖
+                        <button
+                          className="ep-bookmark-remove"
+                          onClick={(e) => removeEpBookmark(e, ep)}
+                          title="Remove bookmark"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

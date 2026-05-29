@@ -16,6 +16,8 @@ interface AppStore {
   loadShows: () => Promise<void>
   loadMovies: () => Promise<void>
   loadEpisodes: (showId: number) => Promise<void>
+  reloadEpisodes: (showId: number) => Promise<void>
+  setEpisodeWatched: (showId: number, episodePath: string, watched: boolean) => void
   scanMedia: () => Promise<void>
   fetchTmdb: () => Promise<void>
   loadSettings: () => Promise<void>
@@ -60,6 +62,22 @@ export const useStore = create<AppStore>((set, get) => ({
     if (get().episodes[showId]) return
     const eps = await window.api.getEpisodes(showId)
     set((s) => ({ episodes: { ...s.episodes, [showId]: eps as Episode[] } }))
+  },
+
+  reloadEpisodes: async (showId: number) => {
+    const eps = await window.api.getEpisodes(showId)
+    set((s) => ({ episodes: { ...s.episodes, [showId]: eps as Episode[] } }))
+  },
+
+  setEpisodeWatched: (showId: number, episodePath: string, watched: boolean) => {
+    set((s) => ({
+      episodes: {
+        ...s.episodes,
+        [showId]: (s.episodes[showId] ?? []).map((e) =>
+          e.path === episodePath ? { ...e, watched } : e
+        )
+      }
+    }))
   },
 
   scanMedia: async () => {

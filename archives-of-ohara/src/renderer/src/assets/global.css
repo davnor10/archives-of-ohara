@@ -663,7 +663,67 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
 }
 
 .ep-bookmark { color: var(--gold); font-size: 12px; }
-.watched-progress { color: var(--seafoam); }
+.watched-progress { color: var(--seafoam); font-size: 12px; white-space: nowrap; }
+
+/* Show-level progress bar */
+.show-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0 2px;
+}
+.show-progress-track {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.show-progress-fill {
+  height: 100%;
+  background: var(--seafoam);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* Episode title + progress bar wrapper */
+.ep-title-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ep-progress-track {
+  height: 2px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.ep-progress-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 1px;
+  opacity: 0.7;
+}
+
+/* Next-up episode highlight */
+.episode-row.episode-next-up {
+  border-left: 2px solid var(--seafoam) !important;
+  padding-left: 10px;
+}
+.ep-next-up-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--seafoam);
+  background: rgba(126,202,195,0.12);
+  border: 1px solid rgba(126,202,195,0.3);
+  border-radius: 10px;
+  padding: 1px 7px;
+  flex-shrink: 0;
+}
 
 .btn-sm {
   padding: 5px 12px !important;
@@ -1430,29 +1490,54 @@ input[type='range'].ui-scale-slider {
   font-size: 16px;
   font-weight: 700;
   color: var(--gold-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.season-card-done {
+  font-size: 11px;
+  color: var(--seafoam);
+  background: rgba(126,202,195,0.15);
+  border: 1px solid rgba(126,202,195,0.3);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-family: sans-serif;
+}
+
+.season-card-progress-track {
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+  margin: 2px 0;
+}
+.season-card-progress-fill {
+  height: 100%;
+  background: var(--seafoam);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 
 .season-card-stats {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-dim);
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .season-card-watched {
   color: var(--seafoam);
-  opacity: 0.75;
 }
 
 .season-card-random {
-  margin-top: 8px;
+  margin-top: 6px;
   background: transparent;
   border: 1px solid rgba(126,202,195,0.25);
   border-radius: 4px;
   color: var(--text-dim);
-  font-size: 11px;
-  padding: 4px 8px;
+  font-size: 13px;
+  padding: 4px 10px;
   cursor: pointer;
   transition: all 0.15s;
   align-self: flex-start;
