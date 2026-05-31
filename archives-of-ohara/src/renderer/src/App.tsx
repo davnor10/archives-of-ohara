@@ -5,6 +5,7 @@ import { useStore } from './store'
 import TitleBar from './components/TitleBar'
 import LoadingOverlay from './components/LoadingOverlay'
 import SetSailModal from './components/SetSailModal'
+import UpdateModal from './components/UpdateModal'
 import SeriesScreen from './screens/SeriesScreen'
 import MoviesScreen from './screens/MoviesScreen'
 import PlayerScreen from './screens/PlayerScreen'
@@ -14,6 +15,7 @@ function AppRoutes() {
   const location = useLocation()
   const [sailOpen, setSailOpen] = useState(false)
   const [sailType, setSailType] = useState<'movie' | 'show'>('show')
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; ready: boolean } | null>(null)
   const { loadTags, loadMediaTags, loadSettings, loadBookmarks, scanMedia, settings } = useStore()
 
   useEffect(() => {
@@ -22,6 +24,17 @@ function AppRoutes() {
     loadSettings()
     loadBookmarks()
     scanMedia()
+  }, [])
+
+  useEffect(() => {
+    window.api.onUpdateAvailable((info) => {
+      const v = (info as { version?: string })?.version ?? ''
+      setUpdateInfo({ version: v, ready: false })
+    })
+    window.api.onUpdateDownloaded(() => {
+      setUpdateInfo((prev) => prev ? { ...prev, ready: true } : { version: '', ready: true })
+    })
+    window.api.checkForUpdates()
   }, [])
 
   useEffect(() => {
@@ -66,6 +79,15 @@ function AppRoutes() {
         onClose={() => setSailOpen(false)}
         type={sailType}
       />
+
+      {updateInfo && (
+        <UpdateModal
+          version={updateInfo.version}
+          ready={updateInfo.ready}
+          onInstall={() => window.api.installUpdate()}
+          onIgnore={() => setUpdateInfo(null)}
+        />
+      )}
     </>
   )
 }
