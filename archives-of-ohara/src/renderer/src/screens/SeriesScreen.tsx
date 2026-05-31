@@ -38,7 +38,7 @@ function sortItems(items: MediaItem[], sort: SortKey, dir: 'asc' | 'desc'): Medi
 }
 
 export default function SeriesScreen() {
-  const { shows, loadShows, mediaTags } = useStore()
+  const { shows, loadShows, mediaTags, nextEpisodes, loadNextEpisodes } = useStore()
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const selected = useMemo(() => shows.find((s) => s.id === selectedId) ?? null, [shows, selectedId])
@@ -50,7 +50,10 @@ export default function SeriesScreen() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const location = useLocation()
 
-  useEffect(() => { loadShows() }, [])
+  useEffect(() => {
+    loadShows()
+    loadNextEpisodes()
+  }, [])
 
   useEffect(() => {
     const state = location.state as { selectedShow?: number; selectedSeason?: number } | null
@@ -141,6 +144,7 @@ export default function SeriesScreen() {
               <MediaCard
                 key={show.id}
                 item={show}
+                nextEpisode={nextEpisodes[show.id] ?? null}
                 onClick={() => handleCardClick(show)}
               />
             ))}
@@ -151,7 +155,7 @@ export default function SeriesScreen() {
               <ShowDetail
                 key={selected.id}
                 show={selected}
-                onClose={() => setSelectedId(null)}
+                onClose={() => { setSelectedId(null); loadNextEpisodes() }}
                 initialSeason={initialSeason}
               />
             )}

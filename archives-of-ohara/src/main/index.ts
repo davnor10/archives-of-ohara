@@ -14,7 +14,7 @@ app.commandLine.appendSwitch('enable-gpu-rasterization')
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { secure: true, supportFetchAPI: true, stream: true } }
+  { scheme: 'media', privileges: { secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } }
 ])
 
 const VIDEO_EXTS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v', '.ts', '.m2ts', '.webm'])
@@ -177,7 +177,7 @@ app.whenReady().then(async () => {
           if (ALWAYS_TRANSCODE_EXTS.has(ext) || needsTranscode(streams, audioIdx)) {
             const proc = spawnTranscode(filePath, { audioIdx, startSec } as TranscodeOpts, streams)
             const stream = nodeStreamToWeb(proc.stdout, () => { try { proc.kill() } catch { /* ignore */ } })
-            return new Response(stream, { status: 200, headers: { 'Content-Type': 'video/mp4' } })
+            return new Response(stream, { status: 200, headers: { 'Content-Type': 'video/mp4', 'Access-Control-Allow-Origin': '*' } })
           }
         } catch { /* ffmpeg unavailable — fall through to direct serve */ }
       }
@@ -199,6 +199,7 @@ app.whenReady().then(async () => {
             'Accept-Ranges':  'bytes',
             'Content-Length': String(end - start + 1),
             'Content-Type':   mimeType,
+            'Access-Control-Allow-Origin': '*',
           },
         })
       }
@@ -209,6 +210,7 @@ app.whenReady().then(async () => {
           'Content-Length': String(stat.size),
           'Content-Type':   mimeType,
           'Accept-Ranges':  'bytes',
+          'Access-Control-Allow-Origin': '*',
         },
       })
     } catch (err) {
@@ -270,6 +272,31 @@ app.whenReady().then(async () => {
     return db
       .prepare('SELECT * FROM episodes WHERE show_id=? ORDER BY season ASC, episode_number ASC, title ASC')
       .all(showId)
+  })
+  ipcMain.handle('get-next-episodes', () => {
+    // Window function approach: rank each episode per show by (unwatched first, then season/ep order).
+    // rn=1 is the next episode to play — first unwatched, or first overall for finished shows.
+    const rows = db.prepare(`
+      WITH ranked AS (
+        SELECT
+          *,
+          COUNT(*)  OVER (PARTITION BY show_id) AS total_count,
+          SUM(watched) OVER (PARTITION BY show_id) AS watched_count,
+          ROW_NUMBER() OVER (
+            PARTITION BY show_id
+            ORDER BY
+              watched ASC,
+              season ASC,
+              COALESCE(episode_number, 9999) ASC,
+              title ASC
+          ) AS rn
+        FROM episodes
+      )
+      SELECT * FROM ranked WHERE rn = 1
+    `).all() as Array<{ show_id: number }>
+    const result: Record<number, unknown> = {}
+    for (const row of rows) result[row.show_id] = row
+    return result
   })
 
   ipcMain.handle('save-bookmark', (_e, mediaPath: string, seconds: number) => {
@@ -392,6 +419,25 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('extract-subtitle', async (_e, videoPath: string, streamIndex: number): Promise<string | null> => {
     try { return await extractSubtitle(videoPath, streamIndex) } catch { return null }
+  })
+
+  ipcMain.handle('import-subtitle', async (): Promise<SubtitleFile | null> => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+    const { canceled, filePaths } = await dialog.showOpenDialog(win, {
+      title: 'Import Subtitle',
+      filters: [{ name: 'Subtitles', extensions: ['srt', 'vtt'] }],
+      properties: ['openFile'],
+    })
+    if (canceled || !filePaths[0]) return null
+    try {
+      const filePath = filePaths[0]
+      const raw = readFileSync(filePath, 'utf-8')
+      const ext = extname(filePath).toLowerCase()
+      const vttContent = ext === '.srt' ? srtToVtt(raw) : raw
+      const label = basename(filePath, ext)
+      return { path: filePath, label, vttContent }
+    } catch { return null }
   })
 
   createWindow()

@@ -243,7 +243,8 @@ export default function PlayerScreen() {
     const interval = setInterval(() => {
       if (playing && duration > 0) {
         const sec = seekOffset + (videoRef.current?.currentTime ?? played * duration)
-        if (sec > 5) window.api.saveBookmark(path, sec)
+        // Skip first 10% to avoid spamming bookmarks at the start of an episode
+        if (sec > 5 && sec / duration >= 0.1) window.api.saveBookmark(path, sec)
       }
     }, 10000)
     return () => clearInterval(interval)
@@ -252,11 +253,16 @@ export default function PlayerScreen() {
   // ── Save bookmark on exit ─────────────────────────────────────────────────
   useEffect(() => {
     return () => {
+      const video = videoRef.current
+      const dur = durationRef.current
+      const sec = seekOffsetRef.current + (video?.currentTime ?? playedRef.current * dur)
       if (autoBookmarkRef.current !== false && path) {
-        const video = videoRef.current
-        // Prefer live currentTime; fall back to the tracked fraction × duration
-        const sec = seekOffsetRef.current + (video?.currentTime ?? playedRef.current * durationRef.current)
-        if (durationRef.current > 0 && sec > 5) window.api.saveBookmark(path, sec)
+        // Skip first 10%; manual 🔖 still saves anywhere
+        if (dur > 0 && sec > 5 && sec / dur >= 0.1) window.api.saveBookmark(path, sec)
+      }
+      // Mark as watched if exiting in the last 10% (skipping credits counts)
+      if (isEpisode && path && !endedRef.current && dur > 0 && sec / dur >= 0.9) {
+        window.api.markWatched(path, true)
       }
       loadBookmarks()
       // Clean up WebAudio context if it was lazily created
@@ -401,6 +407,16 @@ export default function PlayerScreen() {
     }
   }
 
+  const handleImportSubtitle = async () => {
+    const sub = await window.api.importSubtitle() as SubtitleFile | null
+    if (!sub) return
+    setSubtitles((prev) => {
+      setActiveSubIdx(prev.length)
+      return [...prev, sub]
+    })
+    setShowSubMenu(false)
+  }
+
   const selectAudio = (idx: number) => {
     setShowAudioMenu(false)
     if (idx === activeAudioIdx) return
@@ -448,6 +464,7 @@ export default function PlayerScreen() {
         <video
           ref={videoRef}
           src={src || undefined}
+          crossOrigin="anonymous"
           style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block', objectFit: 'contain' }}
           onCanPlay={(e) => {
             setVideoError(null)
@@ -623,16 +640,18 @@ export default function PlayerScreen() {
                 type="range" className="volume-slider"
                 min={0} max={2} step={0.01}
                 value={muted ? 0 : volume}
-                onChange={(e) => {
+                onChange={async (e) => {
                   const v = parseFloat(e.target.value)
                   if (v > 1) {
-                    // Lazy-init WebAudio gain node on first above-100% use (user gesture guarantees context resumes)
+                    // Lazy-init WebAudio gain node on first above-100% use.
+                    // Await ctx.resume() so the context is running before audio flows through it —
+                    // a fire-and-forget resume leaves the context suspended, silencing the hijacked audio.
                     if (!audioCtxRef.current) {
                       const video = videoRef.current
                       if (video) {
                         try {
                           const ctx = new AudioContext()
-                          ctx.resume().catch(() => {})
+                          await ctx.resume()
                           const source = ctx.createMediaElementSource(video)
                           const gain = ctx.createGain()
                           gain.gain.value = v
@@ -734,7 +753,7 @@ export default function PlayerScreen() {
             )}
 
             {/* Subtitle selector */}
-            {subtitles.length > 0 && (
+            {(
               <div className="player-menu-wrap" style={{ position: 'relative' }}>
                 <button
                   className={`player-btn sub-btn ${activeSubIdx !== -1 ? 'active' : ''}`}
@@ -761,6 +780,13 @@ export default function PlayerScreen() {
                         {s.streamIndex != null && <span className="track-codec">embedded</span>}
                       </button>
                     ))}
+                    <button
+                      className="track-menu-item"
+                      style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12 }}
+                      onClick={handleImportSubtitle}
+                    >
+                      + Import from file…
+                    </button>
                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', padding: '6px 10px 4px', display: 'flex', flexDirection: 'column', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', flex: 1 }}>Sync</span>

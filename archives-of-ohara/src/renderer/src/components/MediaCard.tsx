@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import type { MediaItem } from '../../../preload/index.d'
+import { useNavigate } from 'react-router-dom'
+import type { MediaItem, Episode } from '../../../preload/index.d'
 import PlaceholderPoster from './PlaceholderPoster'
 import TagPicker, { tagColor } from './TagPicker'
 import PosterPickerModal from './PosterPickerModal'
@@ -9,7 +10,15 @@ interface Props {
   item: MediaItem
   hasBookmark?: boolean
   onRemoveBookmark?: () => void
+  nextEpisode?: Episode | null
   onClick: () => void
+}
+
+function formatNextEp(ep: Episode): string {
+  const s = `S${ep.season}`
+  const e = ep.episode_number != null ? `:E${ep.episode_number}` : ''
+  const parts = [s + e, ep.title].filter(Boolean)
+  return parts.join(' · ')
 }
 
 function formatDur(sec: number): string {
@@ -19,8 +28,9 @@ function formatDur(sec: number): string {
   return `${m}m`
 }
 
-export default function MediaCard({ item, hasBookmark, onRemoveBookmark, onClick }: Props) {
-  const { tags, mediaTags, setFavorite } = useStore()
+export default function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpisode, onClick }: Props) {
+  const { tags, mediaTags, setFavorite, updateLastWatched } = useStore()
+  const navigate = useNavigate()
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [posterPickerOpen, setPosterPickerOpen] = useState(false)
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 })
@@ -95,6 +105,37 @@ export default function MediaCard({ item, hasBookmark, onRemoveBookmark, onClick
             <button className="card-poster-btn" onClick={(e) => { e.stopPropagation(); setPosterPickerOpen(true) }} title="Change poster">🖼</button>
             <button className="card-tag-btn" onClick={openTagPicker} title="Edit tags">🏷</button>
           </div>
+
+          {nextEpisode && (
+            <div className="card-play-row">
+              {(() => {
+                const isStart = (nextEpisode.watched_count ?? 0) === 0
+                  || (nextEpisode.total_count != null && (nextEpisode.watched_count ?? 0) >= nextEpisode.total_count)
+                return (
+                  <button
+                    className={`card-play-btn ${isStart ? 'card-play-btn--start' : 'card-play-btn--continue'}`}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      updateLastWatched(nextEpisode.path)
+                      navigate('/player', {
+                        state: {
+                          path: nextEpisode.path,
+                          isEpisode: true,
+                          durationSeconds: nextEpisode.duration_seconds,
+                          showId: item.id,
+                          seasonNumber: nextEpisode.season,
+                          autoSubtitleOverride: item.auto_subtitle ?? null,
+                          title: `${item.title_override ?? item.title} — ${formatNextEp(nextEpisode)}`,
+                        }
+                      })
+                    }}
+                  >
+                    {isStart ? '▶ Start watching' : '▶ Continue watching'}
+                  </button>
+                )
+              })()}
+            </div>
+          )}
         </div>
         {hasBookmark && (
           <div className="media-card-bookmark-wrap">

@@ -400,6 +400,29 @@ export default function SettingsScreen() {
           🎬 Refresh Metadata
         </button>
       </div>
+
+      {/* About / Share Section */}
+      <div className="settings-section" style={{ marginTop: 32, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 28 }}>
+        <div className="settings-section-title">About</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
+          Archives of Ohara is free, open-source, and built for personal use.
+          If you enjoy it, sharing it means a lot.
+        </div>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-ghost"
+            onClick={() => window.open('https://github.com/davnor10/archives-of-ohara', '_blank')}
+          >
+            ★ Star on GitHub
+          </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => window.open('https://ko-fi.com/archives_of_ohara', '_blank')}
+          >
+            ☕ Buy me a coffee
+          </button>
+        </div>
+      </div>
     </PageWrapper>
   )
 }

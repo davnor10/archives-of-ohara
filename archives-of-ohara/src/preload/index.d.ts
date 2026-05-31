@@ -26,6 +26,8 @@ export interface Episode {
   scanned_at: string
   watched: boolean
   duration_seconds?: number
+  watched_count?: number  // populated by get-next-episodes only
+  total_count?: number    // populated by get-next-episodes only
 }
 
 export interface Bookmark {
@@ -89,6 +91,7 @@ export interface OharaAPI {
   fetchTmdb: () => Promise<boolean>
   getMedia: (type: 'movie' | 'show') => Promise<MediaItem[]>
   getEpisodes: (showId: number) => Promise<Episode[]>
+  getNextEpisodes: () => Promise<Record<number, Episode>>
   saveBookmark: (mediaPath: string, seconds: number) => Promise<void>
   getBookmark: (mediaPath: string) => Promise<Bookmark | null>
   deleteBookmark: (mediaPath: string) => Promise<void>
@@ -101,6 +104,7 @@ export interface OharaAPI {
   getDuration: (videoPath: string) => Promise<number>
   needsTranscode: (videoPath: string, audioIdx: number) => Promise<boolean>
   extractSubtitle: (videoPath: string, streamIndex: number) => Promise<string | null>
+  importSubtitle: () => Promise<SubtitleFile | null>
   getTags: () => Promise<Tag[]>
   addTag: (name: string) => Promise<Tag | null>
   deleteTag: (id: number) => Promise<void>

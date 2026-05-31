@@ -17,6 +17,7 @@ const api = {
 
   getMedia: (type: 'movie' | 'show'): Promise<unknown[]> => ipcRenderer.invoke('get-media', type),
   getEpisodes: (showId: number): Promise<unknown[]> => ipcRenderer.invoke('get-episodes', showId),
+  getNextEpisodes: (): Promise<Record<number, unknown>> => ipcRenderer.invoke('get-next-episodes'),
 
   saveBookmark: (mediaPath: string, seconds: number): Promise<void> =>
     ipcRenderer.invoke('save-bookmark', mediaPath, seconds),
@@ -48,6 +49,8 @@ const api = {
 
   extractSubtitle: (videoPath: string, streamIndex: number): Promise<string | null> =>
     ipcRenderer.invoke('extract-subtitle', videoPath, streamIndex),
+
+  importSubtitle: (): Promise<unknown> => ipcRenderer.invoke('import-subtitle'),
 
   getTags: (): Promise<unknown[]> => ipcRenderer.invoke('get-tags'),
   addTag: (name: string): Promise<unknown | null> => ipcRenderer.invoke('add-tag', name),

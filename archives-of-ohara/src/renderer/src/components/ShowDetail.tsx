@@ -295,6 +295,11 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
         {showSeasonPicker && (
           <div className="season-picker">
             <div className="season-picker-toolbar">
+              {eps.length > 0 && (watchedCount === 0 || watchedCount === eps.length) && !continueEp && (
+                <button className="continue-btn" style={{ marginTop: 0 }} onClick={() => playEpisode(eps[0])}>
+                  ▶ Start watching
+                </button>
+              )}
               {continueEp && (
                 <button className="continue-btn" style={{ marginTop: 0 }} onClick={() => playEpisode(continueEp)}>
                   ▶ Continue{' '}
@@ -362,6 +367,11 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                 </select>
               )}
 
+              {eps.length > 0 && (watchedCount === 0 || watchedCount === eps.length) && !continueEp && (
+                <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(eps[0])}>
+                  ▶ Start watching
+                </button>
+              )}
               {continueEp && (
                 <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(continueEp)}>
                   ▶ Continue

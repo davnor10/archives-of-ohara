@@ -70,16 +70,25 @@ try { db.exec('ALTER TABLE media_items ADD COLUMN favorite INTEGER DEFAULT 0') }
 try { db.exec('ALTER TABLE media_items ADD COLUMN title_override TEXT') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN auto_subtitle INTEGER') } catch { /* column exists */ }
 
-// Seed default tags once
+// Default tags aligned with TMDB genre names (movies + TV combined)
 const DEFAULT_TAGS = [
-  'Action', 'Adventure', 'Animation', 'Anime', 'Biography', 'Comedy', 'Crime',
-  'Documentary', 'Drama', 'Family', 'Fantasy', 'History', 'Horror', 'Musical',
-  'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sport', 'Superhero',
-  'Thriller', 'War', 'Western'
+  // Movie genres
+  'Action', 'Adventure', 'Animation', 'Comedy', 'Crime', 'Documentary',
+  'Drama', 'Family', 'Fantasy', 'History', 'Horror', 'Music', 'Mystery',
+  'Romance', 'Science Fiction', 'Thriller', 'TV Movie', 'War', 'Western',
+  // TV-specific genres
+  'Action & Adventure', 'Kids', 'News', 'Reality', 'Sci-Fi & Fantasy',
+  'Soap', 'Talk', 'War & Politics',
 ]
 try {
-  const ins = db.prepare('INSERT OR IGNORE INTO tags (name, is_default) VALUES (?, 1)')
-  db.transaction(() => DEFAULT_TAGS.forEach((n) => ins.run(n)))()
+  db.transaction(() => {
+    // Remove old default tags not in the new TMDB-aligned list
+    const placeholders = DEFAULT_TAGS.map(() => '?').join(',')
+    db.prepare(`DELETE FROM tags WHERE is_default = 1 AND name NOT IN (${placeholders})`).run(...DEFAULT_TAGS)
+    // Insert new defaults (existing ones are ignored)
+    const ins = db.prepare('INSERT OR IGNORE INTO tags (name, is_default) VALUES (?, 1)')
+    DEFAULT_TAGS.forEach((n) => ins.run(n))
+  })()
 } catch { /* ignore */ }
 
 export default db

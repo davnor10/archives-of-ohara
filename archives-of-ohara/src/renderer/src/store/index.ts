@@ -5,6 +5,7 @@ interface AppStore {
   shows: MediaItem[]
   movies: MediaItem[]
   episodes: Record<number, Episode[]>
+  nextEpisodes: Record<number, Episode>
   settings: AppSettings
   isScanning: boolean
   isFetchingTmdb: boolean
@@ -17,6 +18,7 @@ interface AppStore {
   loadMovies: () => Promise<void>
   loadEpisodes: (showId: number) => Promise<void>
   reloadEpisodes: (showId: number) => Promise<void>
+  loadNextEpisodes: () => Promise<void>
   setEpisodeWatched: (showId: number, episodePath: string, watched: boolean) => void
   scanMedia: () => Promise<void>
   fetchTmdb: () => Promise<void>
@@ -40,6 +42,7 @@ export const useStore = create<AppStore>((set, get) => ({
   shows: [],
   movies: [],
   episodes: {},
+  nextEpisodes: {},
   settings: {},
   isScanning: false,
   isFetchingTmdb: false,
@@ -71,6 +74,11 @@ export const useStore = create<AppStore>((set, get) => ({
     set((s) => ({ episodes: { ...s.episodes, [showId]: eps as Episode[] } }))
   },
 
+  loadNextEpisodes: async () => {
+    const result = await window.api.getNextEpisodes()
+    set({ nextEpisodes: result as Record<number, Episode> })
+  },
+
   setEpisodeWatched: (showId: number, episodePath: string, watched: boolean) => {
     set((s) => ({
       episodes: {
@@ -86,7 +94,7 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ isScanning: true })
     try {
       const result = await window.api.scanMedia()
-      set({ lastScanResult: result, shows: [], movies: [], episodes: {} })
+      set({ lastScanResult: result, shows: [], movies: [], episodes: {}, nextEpisodes: {} })
       await Promise.all([get().loadShows(), get().loadMovies()])
     } finally {
       set({ isScanning: false })
