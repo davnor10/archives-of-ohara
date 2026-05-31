@@ -1701,7 +1701,9 @@ input[type='range'].ui-scale-slider {
 
 .episode-view-toolbar .btn,
 .episode-view-toolbar .continue-btn,
-.episode-view-toolbar .season-select {
+.episode-view-toolbar .season-select,
+.season-picker-toolbar .btn,
+.season-picker-toolbar .continue-btn {
   height: 34px;
   box-sizing: border-box;
 }

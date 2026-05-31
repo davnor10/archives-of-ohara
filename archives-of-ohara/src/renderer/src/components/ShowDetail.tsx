@@ -109,10 +109,16 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
   const watchedCount = eps.filter((e) => e.watched).length
   const watchedPct = eps.length > 0 ? (watchedCount / eps.length) * 100 : 0
 
-  // First unwatched episode in the current season
+  // First unwatched episode in the current season (for episode list highlight)
   const nextUpEp = useMemo(
     () => currentSeasonEps.find((ep) => !ep.watched) ?? null,
     [currentSeasonEps]
+  )
+
+  // First unwatched episode across the whole show (for Continue button)
+  const nextUnwatchedEp = useMemo(
+    () => eps.find((ep) => !ep.watched) ?? null,
+    [eps]
   )
 
   const removeEpBookmark = async (e: React.MouseEvent, ep: Episode) => {
@@ -308,6 +314,11 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                     : continueEp.title}
                 </button>
               )}
+              {!continueEp && watchedCount > 0 && watchedCount < eps.length && nextUnwatchedEp && (
+                <button className="btn btn-ghost btn-sm" onClick={() => playEpisode(nextUnwatchedEp)}>
+                  ▶ Continue
+                </button>
+              )}
               <button className="btn btn-ghost btn-sm" onClick={() => playRandom(eps)}>
                 🎲 Random Episode
               </button>
@@ -374,6 +385,11 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
               )}
               {continueEp && (
                 <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(continueEp)}>
+                  ▶ Continue
+                </button>
+              )}
+              {!continueEp && watchedCount > 0 && watchedCount < eps.length && nextUnwatchedEp && (
+                <button className="btn btn-ghost btn-sm" onClick={() => playEpisode(nextUnwatchedEp)}>
                   ▶ Continue
                 </button>
               )}
