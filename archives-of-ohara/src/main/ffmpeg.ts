@@ -9,6 +9,7 @@ function getFfmpegPath(): string {
     const exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
     const bundled = join(process.resourcesPath, exe)
     if (existsSync(bundled)) return bundled
+    console.error('[ffmpeg] Bundled binary not found at:', bundled)
   }
   // Dev: use ffmpeg-static from node_modules
   try {
@@ -73,6 +74,9 @@ export function probeStreams(filePath: string): Promise<MediaStream[]> {
   return new Promise((resolve) => {
     execFile(getFfmpegPath(), ['-hide_banner', '-i', filePath], (_err, _stdout, stderr) => {
       // ffmpeg always exits non-zero when no output is specified; stderr has the info
+      if (stderr.includes('No such file or directory')) {
+        console.warn('[ffmpeg] File not found during probe:', filePath)
+      }
       const dur = parseDuration(stderr)
       if (dur > 0) _durationCache.set(filePath, dur)
       resolve(parseStreams(stderr))
@@ -147,6 +151,9 @@ export function spawnTranscode(filePath: string, opts: TranscodeOpts = {}, strea
   const proc = spawn(getFfmpegPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] })
   // Drain stderr so a full pipe buffer never stalls the ffmpeg process
   proc.stderr?.resume()
+  proc.on('close', (code) => {
+    if (code !== 0 && code !== null) console.error('[ffmpeg] Transcode exited with code', code, filePath)
+  })
   return proc
 }
 
@@ -171,6 +178,9 @@ export function extractSubtitle(filePath: string, streamIndex: number): Promise<
       const text = Buffer.concat(chunks).toString('utf-8')
       resolve(text.trim() ? text : null)
     })
-    proc.on('error', () => resolve(null))
+    proc.on('error', (err) => {
+      console.error('[ffmpeg] extractSubtitle spawn error:', err)
+      resolve(null)
+    })
   })
 }

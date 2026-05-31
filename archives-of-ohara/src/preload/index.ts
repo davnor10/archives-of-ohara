@@ -74,6 +74,23 @@ const api = {
     ipcRenderer.invoke('set-title-override', mediaId, override),
   setSeriesSubtitle: (mediaId: number, value: number | null): Promise<void> =>
     ipcRenderer.invoke('set-series-subtitle', mediaId, value),
+
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('get-app-version'),
+  checkForUpdates: (): Promise<{ status: string; message?: string }> =>
+    ipcRenderer.invoke('check-for-updates'),
+  installUpdate: () => ipcRenderer.send('install-update'),
+  onUpdateAvailable: (cb: (info: unknown) => void) => {
+    ipcRenderer.on('update-available', (_e, info) => cb(info))
+  },
+  onUpdateNotAvailable: (cb: () => void) => {
+    ipcRenderer.on('update-not-available', cb)
+  },
+  onUpdateDownloaded: (cb: () => void) => {
+    ipcRenderer.on('update-downloaded', cb)
+  },
+  onUpdateError: (cb: (message: string) => void) => {
+    ipcRenderer.on('update-error', (_e, msg) => cb(msg))
+  },
 }
 
 if (process.contextIsolated) {

@@ -23,6 +23,9 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [tagError, setTagError] = useState('')
+  const [appVersion, setAppVersion] = useState('')
+  const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloaded' | 'up-to-date' | 'error' | 'dev'>('idle')
+  const [updateVersion, setUpdateVersion] = useState('')
   const [selectedTheme, setSelectedTheme] = useState('ocean')
   const [autoBookmark, setAutoBookmark] = useState(true)
   const [autoSubtitle, setAutoSubtitle] = useState(false)
@@ -32,6 +35,18 @@ export default function SettingsScreen() {
   const [uiScale, setUiScale] = useState(1.0)
 
   useEffect(() => { loadSettings() }, [])
+
+  useEffect(() => {
+    window.api.getAppVersion().then(setAppVersion)
+    window.api.onUpdateAvailable((info) => {
+      const i = info as { version?: string }
+      setUpdateVersion(i?.version ?? '')
+      setUpdateStatus('available')
+    })
+    window.api.onUpdateNotAvailable(() => setUpdateStatus((s) => s === 'checking' ? 'up-to-date' : s))
+    window.api.onUpdateDownloaded(() => setUpdateStatus('downloaded'))
+    window.api.onUpdateError(() => setUpdateStatus('error'))
+  }, [])
 
   useEffect(() => {
     setShowPaths(settings.show_paths ?? [])
@@ -79,6 +94,14 @@ export default function SettingsScreen() {
     const result = await addTag(name)
     if (result) { setNewTagName(''); setTagError('') }
     else setTagError('Could not create tag')
+  }
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus('checking')
+    const result = await window.api.checkForUpdates()
+    if (result.status === 'dev') setUpdateStatus('dev')
+    else if (result.status === 'error') setUpdateStatus('error')
+    // Otherwise wait for update-available / update-not-available events
   }
 
   const customTags = tags.filter((t) => !t.is_default)
@@ -399,6 +422,56 @@ export default function SettingsScreen() {
         >
           🎬 Refresh Metadata
         </button>
+      </div>
+
+      {/* Updates Section */}
+      <div className="settings-section" style={{ marginTop: 32, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 28 }}>
+        <div className="settings-section-title">Updates</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 16 }}>
+          Current version:{' '}
+          <strong style={{ color: 'var(--parchment)' }}>v{appVersion}</strong>
+        </div>
+
+        {updateStatus === 'available' && (
+          <div style={{ color: 'var(--seafoam)', fontSize: 13, marginBottom: 12 }}>
+            {updateVersion ? `v${updateVersion}` : 'An update'} is available — downloading…
+          </div>
+        )}
+        {updateStatus === 'downloaded' && (
+          <div style={{ color: 'var(--seafoam)', fontSize: 13, marginBottom: 12 }}>
+            Update ready{updateVersion ? ` (v${updateVersion})` : ''}. Restart to install.
+          </div>
+        )}
+        {updateStatus === 'up-to-date' && (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>
+            You're on the latest version.
+          </div>
+        )}
+        {updateStatus === 'error' && (
+          <div style={{ color: '#c97b7b', fontSize: 13, marginBottom: 12 }}>
+            Could not check for updates.
+          </div>
+        )}
+        {updateStatus === 'dev' && (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 12 }}>
+            Updates are disabled in development mode.
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            className="btn btn-ghost"
+            onClick={handleCheckUpdates}
+            disabled={updateStatus === 'checking'}
+          >
+            {updateStatus === 'checking' ? '⟳ Checking…' : '⟳ Check for Updates'}
+          </button>
+          {updateStatus === 'downloaded' && (
+            <button className="btn btn-primary" onClick={() => window.api.installUpdate()}>
+              Restart & Install
+            </button>
+          )}
+        </div>
       </div>
 
       {/* About / Share Section */}

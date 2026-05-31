@@ -1,4 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, nativeImage } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join, dirname, basename, extname } from 'path'
 import { readdirSync, readFileSync, existsSync, statSync, createReadStream } from 'fs'
 import db from './db'
@@ -156,7 +157,10 @@ app.whenReady().then(async () => {
       const audioIdx = parseInt(urlObj.searchParams.get('audioIdx') ?? '0', 10) || 0
       const startSec = parseFloat(urlObj.searchParams.get('startSec') ?? '0') || 0
 
-      if (!filePath || !existsSync(filePath)) return new Response('Not Found', { status: 404 })
+      if (!filePath || !existsSync(filePath)) {
+        console.warn('[media] File not found:', filePath || '(no path in request)')
+        return new Response('Not Found', { status: 404 })
+      }
 
       const ext = extname(filePath).toLowerCase()
 
@@ -179,11 +183,14 @@ app.whenReady().then(async () => {
             const stream = nodeStreamToWeb(proc.stdout, () => { try { proc.kill() } catch { /* ignore */ } })
             return new Response(stream, { status: 200, headers: { 'Content-Type': 'video/mp4', 'Access-Control-Allow-Origin': '*' } })
           }
-        } catch { /* ffmpeg unavailable — fall through to direct serve */ }
+        } catch (err) {
+          console.warn('[media] ffmpeg probe failed, falling back to direct serve:', filePath, String(err))
+        }
       }
 
       // Direct file serve — stream with correct MIME type and full range-request support.
       const mimeType = MIME_MAP[ext] ?? 'application/octet-stream'
+      if (!MIME_MAP[ext]) console.warn('[media] Unknown extension, serving as octet-stream:', ext, filePath)
       const stat = statSync(filePath)
       const rangeHeader = request.headers.get('range')
 
@@ -214,6 +221,7 @@ app.whenReady().then(async () => {
         },
       })
     } catch (err) {
+      console.error('[media] Unhandled error serving request:', err)
       return new Response(String(err), { status: 500 })
     }
   })
@@ -257,7 +265,7 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('scan-media', async () => {
     const counts = scanMedia()
-    fetchTmdbMetadata().catch(() => {})
+    fetchTmdbMetadata().catch((err) => console.error('[tmdb] Background fetch failed:', err))
     return counts
   })
   ipcMain.handle('fetch-tmdb', async () => {
@@ -438,6 +446,35 @@ app.whenReady().then(async () => {
       const label = basename(filePath, ext)
       return { path: filePath, label, vttContent }
     } catch { return null }
+  })
+
+  ipcMain.handle('get-app-version', () => app.getVersion())
+  ipcMain.handle('check-for-updates', async () => {
+    if (!app.isPackaged) return { status: 'dev' }
+    try {
+      await autoUpdater.checkForUpdates()
+      return { status: 'checking' }
+    } catch (err) {
+      console.error('[updater] checkForUpdates failed:', err)
+      return { status: 'error', message: String(err) }
+    }
+  })
+  ipcMain.on('install-update', () => autoUpdater.quitAndInstall())
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+  autoUpdater.on('update-available', (info) => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('update-available', info)
+  })
+  autoUpdater.on('update-not-available', () => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('update-not-available')
+  })
+  autoUpdater.on('update-downloaded', () => {
+    BrowserWindow.getAllWindows()[0]?.webContents.send('update-downloaded')
+  })
+  autoUpdater.on('error', (err) => {
+    console.error('[updater] Error:', err.message)
+    BrowserWindow.getAllWindows()[0]?.webContents.send('update-error', err.message)
   })
 
   createWindow()

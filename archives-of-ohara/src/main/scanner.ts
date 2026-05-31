@@ -53,7 +53,8 @@ function isVideo(name: string): boolean {
 function safeReadDir(p: string): string[] {
   try {
     return readdirSync(p)
-  } catch {
+  } catch (err) {
+    console.warn('[scanner] Cannot read directory:', p, String(err))
     return []
   }
 }
@@ -127,7 +128,10 @@ function parseEpInfo(filename: string): { season: number; ep: number | null } {
 
 function scanShows(rootPaths: string[], now: string): void {
   for (const root of rootPaths) {
-    if (!existsSync(root)) continue
+    if (!existsSync(root)) {
+      console.warn('[scanner] Show root path not found:', root)
+      continue
+    }
     for (const showName of safeReadDir(root)) {
       const showPath = join(root, showName)
       const stat = safeStat(showPath)
@@ -188,7 +192,10 @@ function scanShows(rootPaths: string[], now: string): void {
 
 function scanMovies(rootPaths: string[], now: string): void {
   for (const root of rootPaths) {
-    if (!existsSync(root)) continue
+    if (!existsSync(root)) {
+      console.warn('[scanner] Movie root path not found:', root)
+      continue
+    }
     for (const entry of safeReadDir(root)) {
       const fullPath = join(root, entry)
       const stat = safeStat(fullPath)

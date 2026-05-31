@@ -13,8 +13,9 @@ asarUnpack:
   - resources/**
 npmRebuild: false
 publish:
-  provider: generic
-  url: ""
+  provider: github
+  owner: davnor10
+  repo: archives-of-ohara
 
 win:
   executableName: archives-of-ohara

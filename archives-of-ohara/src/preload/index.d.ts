@@ -116,6 +116,13 @@ export interface OharaAPI {
   setTmdb: (mediaId: number, tmdbId: number, type: 'movie' | 'show') => Promise<string | null>
   setTitleOverride: (mediaId: number, override: string | null) => Promise<void>
   setSeriesSubtitle: (mediaId: number, value: number | null) => Promise<void>
+  getAppVersion: () => Promise<string>
+  checkForUpdates: () => Promise<{ status: string; message?: string }>
+  installUpdate: () => void
+  onUpdateAvailable: (cb: (info: unknown) => void) => void
+  onUpdateNotAvailable: (cb: () => void) => void
+  onUpdateDownloaded: (cb: () => void) => void
+  onUpdateError: (cb: (message: string) => void) => void
 }
 
 declare global {
