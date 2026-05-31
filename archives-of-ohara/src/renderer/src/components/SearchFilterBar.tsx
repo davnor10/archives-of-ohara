@@ -52,7 +52,7 @@ export default function SearchFilterBar({
   return (
     <div className="search-filter-bar">
       <div className="search-input-wrap">
-        <span className="search-icon">⚲</span>
+        <span className="search-icon">⎈</span>
         <input
           className="search-input"
           type="text"

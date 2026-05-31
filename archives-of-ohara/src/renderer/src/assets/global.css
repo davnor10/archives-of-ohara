@@ -895,6 +895,12 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   color: var(--seafoam);
 }
 
+.btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
 .btn-ghost:hover { background: rgba(126,202,195,0.08); border-color: rgba(126,202,195,0.6); }
 
 /* ===== Set Sail Modal ===== */

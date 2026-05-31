@@ -366,17 +366,38 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                 </button>
               )}
 
-              {seasons.length > 1 && (
-                <select
-                  className="season-select"
-                  value={selectedSeason}
-                  onChange={(e) => setSelectedSeason(parseInt(e.target.value, 10))}
-                >
-                  {seasons.map(({ season }) => (
-                    <option key={season} value={season}>Season {season}</option>
-                  ))}
-                </select>
-              )}
+              {seasons.length > 1 && (() => {
+                const idx = seasons.findIndex((s) => s.season === selectedSeason)
+                const prev = idx > 0 ? seasons[idx - 1].season : null
+                const next = idx < seasons.length - 1 ? seasons[idx + 1].season : null
+                return (
+                  <>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => prev !== null && setSelectedSeason(prev)}
+                      disabled={prev === null}
+                    >
+                      ‹ Prev
+                    </button>
+                    <select
+                      className="season-select"
+                      value={selectedSeason}
+                      onChange={(e) => setSelectedSeason(parseInt(e.target.value, 10))}
+                    >
+                      {seasons.map(({ season }) => (
+                        <option key={season} value={season}>Season {season}</option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => next !== null && setSelectedSeason(next)}
+                      disabled={next === null}
+                    >
+                      Next ›
+                    </button>
+                  </>
+                )
+              })()}
 
               {eps.length > 0 && (watchedCount === 0 || watchedCount === eps.length) && !continueEp && (
                 <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(eps[0])}>
