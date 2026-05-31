@@ -1,6 +1,6 @@
 # Archives of Ohara
 
-**Version 0.4.5**
+**Version 0.4.6**
 
 A personal media library app for your local TV shows and movies. Browse your collection, watch with a built-in player, manage tags, and let the randomizer pick your next voyage — or even a random episode from a show you're already watching.
 

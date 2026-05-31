@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import Spinner from './Spinner'
+
 interface Props {
   version: string
   ready: boolean
@@ -6,6 +9,28 @@ interface Props {
 }
 
 export default function UpdateModal({ version, ready, onInstall, onIgnore }: Props) {
+  const [installing, setInstalling] = useState(false)
+
+  const handleInstall = () => {
+    setInstalling(true)
+    onInstall()
+  }
+
+  if (installing) {
+    return (
+      <div className="modal-overlay" style={{ zIndex: 2000 }}>
+        <div className="sail-modal" style={{ width: 420, textAlign: 'center' }}>
+          <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: '8px 0' }}>
+            <Spinner size="lg" />
+            <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--parchment)', letterSpacing: '0.04em' }}>
+              Updating…
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="modal-overlay" style={{ zIndex: 2000 }}>
       <div className="sail-modal" style={{ width: 420, textAlign: 'left' }}>
@@ -22,10 +47,10 @@ export default function UpdateModal({ version, ready, onInstall, onIgnore }: Pro
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               className="btn btn-primary"
-              onClick={onInstall}
+              onClick={handleInstall}
               disabled={!ready}
             >
-              {ready ? 'Restart & Install' : '⟳ Downloading…'}
+              {ready ? 'Restart & Install' : <><span className="spin-icon">⟳</span> Downloading…</>}
             </button>
             <button className="btn btn-ghost" onClick={onIgnore}>
               Later
