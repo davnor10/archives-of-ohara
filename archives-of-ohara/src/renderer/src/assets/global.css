@@ -134,6 +134,77 @@
   --glow:           rgba(216, 120, 160, 0.18);
 }
 
+/* ── Light themes ─────────────────────────────────────────────── */
+[data-theme="scroll"] {
+  --navy:           #f4ede0;
+  --navy-rgb:       244, 237, 224;
+  --navy-mid:       #ede5d4;
+  --navy-mid-rgb:   237, 229, 212;
+  --navy-elevated:  #e6dcc6;
+  --surface:        #ede5d4;
+  --card-bg:        #ede5d4;
+  --scrollbar-bg:   #ede5d4;
+  --scrollbar-thumb: #c0a880;
+  --teal-dark:      #d8ccb8;
+  --teal-dark-rgb:  216, 204, 184;
+  --teal:           #3a7060;
+  --teal-light:     #2a5a4a;
+  --seafoam:        #1e5a48;
+  --glow:           rgba(30, 90, 72, 0.12);
+  --parchment:      #1a0e04;
+  --text-dim:       #6a4a28;
+  --text-mid:       #4a3018;
+  --gold:           #7a5010;
+  --gold-light:     #5a3a08;
+  --card-border:    rgba(122, 80, 16, 0.25);
+}
+[data-theme="daybreak"] {
+  --navy:           #eaf1f8;
+  --navy-rgb:       234, 241, 248;
+  --navy-mid:       #dce8f4;
+  --navy-mid-rgb:   220, 232, 244;
+  --navy-elevated:  #ccddf0;
+  --surface:        #dce8f4;
+  --card-bg:        #dce8f4;
+  --scrollbar-bg:   #dce8f4;
+  --scrollbar-thumb: #90b8d8;
+  --teal-dark:      #c0d8ee;
+  --teal-dark-rgb:  192, 216, 238;
+  --teal:           #2860a8;
+  --teal-light:     #1850c0;
+  --seafoam:        #104898;
+  --glow:           rgba(16, 72, 152, 0.12);
+  --parchment:      #060e1e;
+  --text-dim:       #2a4878;
+  --text-mid:       #1a3860;
+  --gold:           #7a5808;
+  --gold-light:     #5a4008;
+  --card-border:    rgba(122, 88, 8, 0.25);
+}
+[data-theme="reef"] {
+  --navy:           #f0f8f6;
+  --navy-rgb:       240, 248, 246;
+  --navy-mid:       #e4f4f0;
+  --navy-mid-rgb:   228, 244, 240;
+  --navy-elevated:  #d4ecea;
+  --surface:        #e4f4f0;
+  --card-bg:        #e4f4f0;
+  --scrollbar-bg:   #e4f4f0;
+  --scrollbar-thumb: #80c8c0;
+  --teal-dark:      #b8e4de;
+  --teal-dark-rgb:  184, 228, 222;
+  --teal:           #1a8878;
+  --teal-light:     #0a7068;
+  --seafoam:        #085848;
+  --glow:           rgba(8, 88, 72, 0.12);
+  --parchment:      #02100e;
+  --text-dim:       #2a5850;
+  --text-mid:       #1a4840;
+  --gold:           #6a5008;
+  --gold-light:     #4a3808;
+  --card-border:    rgba(106, 80, 8, 0.25);
+}
+
 html, body, #root {
   height: 100%;
   overflow: hidden;

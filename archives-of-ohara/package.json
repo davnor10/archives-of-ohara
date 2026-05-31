@@ -1,6 +1,6 @@
 {
   "name": "archives-of-ohara",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "description": "A personal media library for your local TV shows and movies. Browse your collection, watch with a built-in player, track episode progress, and fetch posters and metadata from TMDB.",
   "main": "./out/main/index.js",
   "author": "example.com",

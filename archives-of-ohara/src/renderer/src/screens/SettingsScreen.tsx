@@ -4,7 +4,7 @@ import PageWrapper from '../components/PageWrapper'
 import { tagColor } from '../components/TagPicker'
 
 
-const THEMES = [
+const DARK_THEMES = [
   { id: 'ocean',  name: 'Ocean',  bg: '#0a1628', accent: '#7ecac3' },
   { id: 'abyss',  name: 'Abyss',  bg: '#06060e', accent: '#7878e0' },
   { id: 'forest', name: 'Forest', bg: '#091409', accent: '#5ec87a' },
@@ -13,6 +13,13 @@ const THEMES = [
   { id: 'amber',  name: 'Amber',  bg: '#140e04', accent: '#d89050' },
   { id: 'rose',   name: 'Rose',   bg: '#14080e', accent: '#d878a0' },
 ]
+
+const LIGHT_THEMES = [
+  { id: 'scroll',   name: 'Scroll',   bg: '#f4ede0', accent: '#1e5a48' },
+  { id: 'daybreak', name: 'Daybreak', bg: '#eaf1f8', accent: '#104898' },
+  { id: 'reef',     name: 'Reef',     bg: '#f0f8f6', accent: '#085848' },
+]
+
 
 export default function SettingsScreen() {
   const { settings, loadSettings, saveSettings, scanMedia, fetchTmdb, isScanning, isFetchingTmdb, tags, addTag, deleteTag } = useStore()
@@ -220,35 +227,40 @@ export default function SettingsScreen() {
         <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 16 }}>
           Choose an accent color for the interface. Takes effect immediately.
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setSelectedTheme(t.id)
-                document.documentElement.setAttribute('data-theme', t.id)
-              }}
-              title={t.name}
-              style={{
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px',
-              }}
-            >
-              <span style={{
-                display: 'block', width: 36, height: 36, borderRadius: '50%',
-                background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)`,
-                border: selectedTheme === t.id
-                  ? `3px solid var(--gold)`
-                  : '2px solid rgba(255,255,255,0.15)',
-                boxShadow: selectedTheme === t.id ? `0 0 10px ${t.accent}66` : 'none',
-                transition: 'all 0.15s',
-              }} />
-              <span style={{ fontSize: 11, color: selectedTheme === t.id ? 'var(--parchment)' : 'var(--text-dim)' }}>
-                {t.name}
-              </span>
-            </button>
-          ))}
-        </div>
+        {[{ label: 'Dark', themes: DARK_THEMES }, { label: 'Light', themes: LIGHT_THEMES }].map(({ label, themes }) => (
+          <div key={label} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>{label}</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              {themes.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setSelectedTheme(t.id)
+                    document.documentElement.setAttribute('data-theme', t.id)
+                  }}
+                  title={t.name}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px',
+                  }}
+                >
+                  <span style={{
+                    display: 'block', width: 36, height: 36, borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)`,
+                    border: selectedTheme === t.id
+                      ? `3px solid var(--gold)`
+                      : '2px solid rgba(128,128,128,0.25)',
+                    boxShadow: selectedTheme === t.id ? `0 0 10px ${t.accent}66` : 'none',
+                    transition: 'all 0.15s',
+                  }} />
+                  <span style={{ fontSize: 11, color: selectedTheme === t.id ? 'var(--parchment)' : 'var(--text-dim)' }}>
+                    {t.name}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* UI Scale Section */}
