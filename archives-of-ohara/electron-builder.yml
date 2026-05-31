@@ -16,16 +16,16 @@ publish:
   provider: github
   owner: davnor10
   repo: archives-of-ohara
-  releaseInfo:
-    releaseNotes: |
-      A personal media library for your local TV shows and movies.
+releaseInfo:
+  releaseNotes: |
+    A personal media library for your local TV shows and movies.
 
-      **Installation**
-      - **Windows** — run the `-setup.exe` installer
-      - **macOS** — open the `.dmg` and drag to Applications; right-click → Open on first launch
-      - **Linux** — run the `.AppImage` (mark executable first), or install the `.deb`
+    **Installation**
+    - **Windows** — run the `-setup.exe` installer
+    - **macOS** — open the `.dmg` and drag to Applications; right-click → Open on first launch
+    - **Linux** — run the `.AppImage` (mark executable first), or install the `.deb`
 
-      See the [README](https://github.com/davnor10/archives-of-ohara#readme) for full setup instructions including adding your media folders and getting a free TMDB API key.
+    See the [README](https://github.com/davnor10/archives-of-ohara#readme) for full setup instructions including adding your media folders and getting a free TMDB API key.
 
 win:
   executableName: archives-of-ohara
