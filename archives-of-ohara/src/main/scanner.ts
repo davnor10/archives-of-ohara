@@ -246,6 +246,32 @@ export function cleanOrphans(episodeIds: number[], movieIds: number[]): void {
   }
 }
 
+function removeUnconfiguredEntries(showRoots: string[], movieRoots: string[]): void {
+  const underRoot = (filePath: string, roots: string[]): boolean =>
+    roots.some((r) => filePath.startsWith(r + '/') || filePath.startsWith(r + '\\'))
+
+  type Row = { id: number; path: string }
+
+  const staleEpIds = (db.prepare('SELECT id, path FROM episodes').all() as Row[])
+    .filter((ep) => !underRoot(ep.path, showRoots))
+    .map((ep) => ep.id)
+
+  if (staleEpIds.length) {
+    const del = db.prepare('DELETE FROM episodes WHERE id=?')
+    db.transaction(() => { for (const id of staleEpIds) del.run(id) })()
+    db.prepare(`DELETE FROM media_items WHERE type='show' AND id NOT IN (SELECT DISTINCT show_id FROM episodes)`).run()
+  }
+
+  const staleMovieIds = (db.prepare(`SELECT id, path FROM media_items WHERE type='movie'`).all() as Row[])
+    .filter((m) => !underRoot(m.path, movieRoots))
+    .map((m) => m.id)
+
+  if (staleMovieIds.length) {
+    const del = db.prepare('DELETE FROM media_items WHERE id=?')
+    db.transaction(() => { for (const id of staleMovieIds) del.run(id) })()
+  }
+}
+
 export function scanMedia(): { shows: number; movies: number } {
   const getSetting = db.prepare<[string], { value: string }>('SELECT value FROM settings WHERE key=?')
   const showPaths: string[] = JSON.parse(getSetting.get('show_paths')?.value ?? '[]')
@@ -256,6 +282,7 @@ export function scanMedia(): { shows: number; movies: number } {
   scanMovies(moviePaths, now)
 
   checkOrphans(showPaths, moviePaths)
+  removeUnconfiguredEntries(showPaths, moviePaths)
 
   const shows = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='show'").get() as { n: number }).n
   const movies = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='movie'").get() as { n: number }).n

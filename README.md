@@ -1,12 +1,25 @@
 # Archives of Ohara
 
-**Version 0.6.0**
+**Version 0.6.1**
 
 A personal media library app for your local TV shows and movies. Browse your collection, watch with a built-in player, manage tags, and let the randomizer pick your next voyage — or even a random episode from a show you're already watching.
 
 Add a free TMDB API key to automatically pull in posters, release years, ratings, and genre tags for your entire library.
 
 Free and open-source under the [MIT License](LICENSE). If you find it useful, a ★ on GitHub goes a long way — or [buy me a coffee on Ko-Fi](https://ko-fi.com/archives_of_ohara) ☕
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="readme-img/aoh-img01.png" width="48%" alt="Shows screen" />
+  <img src="readme-img/aoh-img02.png" width="48%" alt="Movies screen" />
+</p>
+<p align="center">
+  <img src="readme-img/aoh-img03.png" width="48%" alt="Set Sail randomizer" />
+  <img src="readme-img/aoh-img04.png" width="48%" alt="Show detail and episode tracker" />
+</p>
 
 ---
 

@@ -62,8 +62,8 @@ function AppRoutes() {
         <div className="page-content">
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
-              <Route path="/" element={<Navigate to="/series" replace />} />
-              <Route path="/series" element={<SeriesScreen />} />
+              <Route path="/" element={<Navigate to="/shows" replace />} />
+              <Route path="/shows" element={<SeriesScreen />} />
               <Route path="/movies" element={<MoviesScreen />} />
               <Route path="/player" element={<PlayerScreen />} />
               <Route path="/settings" element={<SettingsScreen />} />

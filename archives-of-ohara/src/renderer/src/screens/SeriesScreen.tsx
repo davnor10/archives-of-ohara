@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store'
 import MediaCard from '../components/MediaCard'
 import ShowDetail from '../components/ShowDetail'
@@ -98,7 +98,7 @@ export default function SeriesScreen() {
     <PageWrapper>
       <div className="screen-header">
         <div>
-          <h1 className="screen-title">Series</h1>
+          <h1 className="screen-title">Shows</h1>
           <div className="screen-subtitle">
             {hasFilter
               ? `${filtered.length} of ${shows.length} show${shows.length !== 1 ? 's' : ''}`
@@ -115,7 +115,7 @@ export default function SeriesScreen() {
           onTagsChange={setActiveTags}
           filterMode={filterMode}
           onFilterModeChange={setFilterMode}
-          placeholder="Search series…"
+          placeholder="Search shows…"
           sort={sort}
           onSortChange={setSort}
           sortDir={sortDir}
@@ -140,14 +140,24 @@ export default function SeriesScreen() {
       ) : (
         <>
           <div className="media-grid">
-            {filtered.map((show) => (
-              <MediaCard
-                key={show.id}
-                item={show}
-                nextEpisode={nextEpisodes[show.id] ?? null}
-                onClick={() => handleCardClick(show)}
-              />
-            ))}
+            <AnimatePresence mode="popLayout">
+              {filtered.map((show) => (
+                <motion.div
+                  key={show.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                >
+                  <MediaCard
+                    item={show}
+                    nextEpisode={nextEpisodes[show.id] ?? null}
+                    onClick={() => handleCardClick(show)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
 
           <AnimatePresence>

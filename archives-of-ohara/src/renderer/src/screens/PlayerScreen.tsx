@@ -368,7 +368,7 @@ export default function PlayerScreen() {
           } else if (document.fullscreenElement) {
             document.exitFullscreen()
           } else if (isEpisode && showId) {
-            navigate('/series', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
+            navigate('/shows', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
           } else {
             navigate(-1)
           }
@@ -584,7 +584,7 @@ export default function PlayerScreen() {
           style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s' }}
           onClick={(e) => {
             e.stopPropagation()
-            if (isEpisode && showId) navigate('/series', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
+            if (isEpisode && showId) navigate('/shows', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
             else navigate(-1)
           }}
         >

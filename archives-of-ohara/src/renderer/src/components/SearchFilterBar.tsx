@@ -29,6 +29,23 @@ export default function SearchFilterBar({
   const { tags } = useStore()
   const [showTagMenu, setShowTagMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const [inputValue, setInputValue] = useState(query)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync input when query is cleared externally
+  useEffect(() => { setInputValue(query) }, [query])
+
+  const handleInputChange = (val: string) => {
+    setInputValue(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => onQueryChange(val), 80)
+  }
+
+  const handleClear = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    setInputValue('')
+    onQueryChange('')
+  }
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -57,11 +74,11 @@ export default function SearchFilterBar({
           className="search-input"
           type="text"
           placeholder={placeholder ?? 'Search…'}
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
+          value={inputValue}
+          onChange={(e) => handleInputChange(e.target.value)}
         />
-        {query && (
-          <button className="search-clear" onClick={() => onQueryChange('')}>×</button>
+        {inputValue && (
+          <button className="search-clear" onClick={handleClear}>×</button>
         )}
       </div>
 

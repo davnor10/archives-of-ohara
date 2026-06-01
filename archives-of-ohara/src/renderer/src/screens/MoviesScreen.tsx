@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '../store'
 import MediaCard from '../components/MediaCard'
 import PageWrapper from '../components/PageWrapper'
@@ -116,15 +117,25 @@ export default function MoviesScreen() {
         </div>
       ) : (
         <div className="media-grid">
-          {filtered.map((movie) => (
-            <MediaCard
-              key={movie.id}
-              item={movie}
-              hasBookmark={!!bookmarks[movie.path]}
-              onRemoveBookmark={() => removeBookmark(movie.path)}
-              onClick={() => handlePlay(movie)}
-            />
-          ))}
+          <AnimatePresence mode="popLayout">
+            {filtered.map((movie) => (
+              <motion.div
+                key={movie.id}
+                layout
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.94 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                <MediaCard
+                  item={movie}
+                  hasBookmark={!!bookmarks[movie.path]}
+                  onRemoveBookmark={() => removeBookmark(movie.path)}
+                  onClick={() => handlePlay(movie)}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </PageWrapper>

@@ -71,7 +71,7 @@ export default function SetSailModal({ open, onClose, type }: Props) {
     if (type === 'movie') {
       navigate('/player', { state: { path: picked.path, title: picked.title } })
     } else {
-      navigate('/series', { state: { selectedShow: picked.id } })
+      navigate('/shows', { state: { selectedShow: picked.id } })
     }
   }
 
@@ -89,10 +89,10 @@ export default function SetSailModal({ open, onClose, type }: Props) {
         >
           <motion.div
             className="sail-modal"
-            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+            initial={{ scale: 0.9, opacity: 0, y: 12 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 400 }}
           >
             {/* ── Header ────────────────────────────────────────────────── */}
             <div className="sail-header">
@@ -105,7 +105,7 @@ export default function SetSailModal({ open, onClose, type }: Props) {
               </motion.span>
               <div className="sail-title">The Charts Are Set</div>
               <div style={{ color: 'var(--text-dim)', fontSize: 13, position: 'relative', zIndex: 1 }}>
-                {type === 'show' ? 'Your next series awaits' : 'Tonight\'s voyage'}
+                {type === 'show' ? 'Your next show awaits' : 'Tonight\'s voyage'}
               </div>
             </div>
 
@@ -157,12 +157,12 @@ export default function SetSailModal({ open, onClose, type }: Props) {
 
                 {pool.length === 0 && (favoritesOnly || filterTagIds.length > 0) && (
                   <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 8 }}>
-                    No {type === 'show' ? 'series' : 'movies'} match these filters.
+                    No {type === 'show' ? 'shows' : 'movies'} match these filters.
                   </div>
                 )}
                 {poolCount && (
                   <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 8 }}>
-                    {pool.length} {type === 'show' ? 'series' : pool.length === 1 ? 'film' : 'films'} in pool
+                    {pool.length} {type === 'show' ? pool.length === 1 ? 'show' : 'shows' : pool.length === 1 ? 'film' : 'films'} in pool
                   </div>
                 )}
               </div>
@@ -177,7 +177,7 @@ export default function SetSailModal({ open, onClose, type }: Props) {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.25 }}
+                      transition={{ duration: 0.15 }}
                     >
                       {picked.poster_base64 && (
                         <img

@@ -22,10 +22,10 @@ export default function TitleBar({ onSetSail }: Props) {
 
       <nav className="title-bar-nav">
         <NavLink
-          to="/series"
+          to="/shows"
           className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
         >
-          Series
+          Shows
         </NavLink>
         <NavLink
           to="/movies"
