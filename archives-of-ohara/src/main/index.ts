@@ -3,9 +3,9 @@ import { autoUpdater } from 'electron-updater'
 import { join, dirname, basename, extname } from 'path'
 import { readdirSync, readFileSync, existsSync, statSync, createReadStream } from 'fs'
 import db from './db'
-import { scanMedia } from './scanner'
+import { scanMedia, cleanOrphans } from './scanner'
 import { fetchTmdbMetadata, searchTmdb, applyTmdbEntry } from './tmdb'
-import { probeStreams, extractSubtitle, getCachedStreams, getCachedDuration, needsTranscode, spawnTranscode } from './ffmpeg'
+import { extractSubtitle, getCachedStreams, getCachedDuration, needsTranscode, spawnTranscode } from './ffmpeg'
 import type { TranscodeOpts } from './ffmpeg'
 
 // Enable hardware HEVC decoding where the GPU supports it
@@ -180,8 +180,31 @@ app.whenReady().then(async () => {
 
           if (ALWAYS_TRANSCODE_EXTS.has(ext) || needsTranscode(streams, audioIdx)) {
             const proc = spawnTranscode(filePath, { audioIdx, startSec } as TranscodeOpts, streams)
+            // Collect stderr and count stdout bytes.
+            // Only surface an error if < 64KB was produced — the ftyp box is ~24
+            // bytes and is written before encoding starts, so a tiny byte count
+            // means the encoder failed. Large output means the movie was playing
+            // and the non-zero exit is just stream-close cleanup noise.
+            const stderrBuf: Buffer[] = []
+            let stdoutBytes = 0
+            proc.stderr?.on('data', (c: Buffer) => stderrBuf.push(c))
+            proc.stdout.on('data', (c: Buffer) => { stdoutBytes += c.length })
+            proc.on('close', (code) => {
+              if (code !== 0 && code !== null && stdoutBytes < 65536) {
+                const detail = Buffer.concat(stderrBuf).toString('utf-8').trim()
+                console.error('[ffmpeg] Transcode failed (code', code, ', output', stdoutBytes, 'bytes):', filePath, '\n', detail)
+                BrowserWindow.getAllWindows()[0]?.webContents.send('transcode-error', detail || `ffmpeg exited with code ${code}`)
+              }
+            })
             const stream = nodeStreamToWeb(proc.stdout, () => { try { proc.kill() } catch { /* ignore */ } })
-            return new Response(stream, { status: 200, headers: { 'Content-Type': 'video/mp4', 'Access-Control-Allow-Origin': '*' } })
+            return new Response(stream, {
+              status: 200,
+              headers: {
+                'Content-Type': 'video/mp4',
+                'Accept-Ranges': 'none',
+                'Access-Control-Allow-Origin': '*',
+              }
+            })
           }
         } catch (err) {
           console.warn('[media] ffmpeg probe failed, falling back to direct serve:', filePath, String(err))
@@ -263,10 +286,13 @@ app.whenReady().then(async () => {
     return result.canceled ? null : result.filePaths[0]
   })
 
-  ipcMain.handle('scan-media', async () => {
-    const counts = scanMedia()
+  ipcMain.handle('scan-media', () => {
+    const result = scanMedia()
     fetchTmdbMetadata().catch((err) => console.error('[tmdb] Background fetch failed:', err))
-    return counts
+    return result
+  })
+  ipcMain.handle('clean-orphans', (_e, episodeIds: number[], movieIds: number[]) => {
+    cleanOrphans(episodeIds, movieIds)
   })
   ipcMain.handle('fetch-tmdb', async () => {
     await fetchTmdbMetadata()
@@ -274,7 +300,32 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('get-media', (_e, type: 'movie' | 'show') => {
+    if (type === 'show') {
+      // missing_count = number of offline episodes (drive-accessible but file gone)
+      return db.prepare(`
+        SELECT m.*,
+          (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.missing_count>0) as missing_count
+        FROM media_items m WHERE m.type='show' ORDER BY m.title ASC
+      `).all()
+    }
     return db.prepare('SELECT * FROM media_items WHERE type=? ORDER BY title ASC').all(type)
+  })
+
+  ipcMain.handle('get-offline-entries', () => {
+    type EpRow = { id: number; path: string; title: string | null; show_title: string }
+    type MovieRow = { id: number; path: string; title: string }
+    const eps = db.prepare(`
+      SELECT e.id, e.path, e.title, m.title as show_title
+      FROM episodes e JOIN media_items m ON m.id=e.show_id
+      WHERE e.missing_count>0 ORDER BY m.title, e.season, e.episode_number
+    `).all() as EpRow[]
+    const movies = db.prepare(`
+      SELECT id, path, title FROM media_items WHERE type='movie' AND missing_count>0 ORDER BY title
+    `).all() as MovieRow[]
+    return [
+      ...eps.map((e) => ({ id: e.id, type: 'episode' as const, title: e.title ?? '', path: e.path, missingCount: 1, showTitle: e.show_title })),
+      ...movies.map((m) => ({ id: m.id, type: 'movie' as const, title: m.title, path: m.path, missingCount: 1 })),
+    ]
   })
   ipcMain.handle('get-episodes', (_e, showId: number) => {
     return db
@@ -395,7 +446,7 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('get-streams', async (_e, videoPath: string) => {
-    try { return await probeStreams(videoPath) } catch { return [] }
+    try { return await getCachedStreams(videoPath) } catch { return [] }
   })
 
   ipcMain.handle('needs-transcode', async (_e, videoPath: string, audioIdx: number) => {
@@ -415,7 +466,7 @@ app.whenReady().then(async () => {
   ipcMain.handle('get-subtitles', async (_e, videoPath: string): Promise<SubtitleFile[]> => {
     const external = findExternalSubtitles(videoPath)
     try {
-      const streams = await probeStreams(videoPath)
+      const streams = await getCachedStreams(videoPath)
       const subStreams = streams.filter((s) => s.codecType === 'subtitle')
       for (const s of subStreams) {
         const label = s.lang ? `Embedded (${s.lang})` : `Embedded track ${s.index}`

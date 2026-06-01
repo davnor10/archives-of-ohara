@@ -118,9 +118,8 @@ export const useStore = create<AppStore>((set, get) => ({
   },
 
   saveSettings: async (data: Partial<AppSettings>) => {
-    const merged = { ...get().settings, ...data }
-    await window.api.saveSettings(merged as Record<string, unknown>)
-    set({ settings: merged })
+    await window.api.saveSettings(data as Record<string, unknown>)
+    set((s) => ({ settings: { ...s.settings, ...data } }))
   },
 
   loadTags: async () => {

@@ -13,6 +13,8 @@ const api = {
   selectFolder: (): Promise<string | null> => ipcRenderer.invoke('select-folder'),
 
   scanMedia: (): Promise<{ shows: number; movies: number }> => ipcRenderer.invoke('scan-media'),
+  cleanOrphans: (episodeIds: number[], movieIds: number[]): Promise<void> => ipcRenderer.invoke('clean-orphans', episodeIds, movieIds),
+  getOfflineEntries: (): Promise<import('./index.d').OrphanEntry[]> => ipcRenderer.invoke('get-offline-entries'),
   fetchTmdb: (): Promise<boolean> => ipcRenderer.invoke('fetch-tmdb'),
 
   getMedia: (type: 'movie' | 'show'): Promise<unknown[]> => ipcRenderer.invoke('get-media', type),
@@ -90,6 +92,11 @@ const api = {
   },
   onUpdateError: (cb: (message: string) => void) => {
     ipcRenderer.on('update-error', (_e, msg) => cb(msg))
+  },
+  onTranscodeError: (cb: (message: string) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, msg: string) => cb(msg)
+    ipcRenderer.on('transcode-error', handler)
+    return () => ipcRenderer.removeListener('transcode-error', handler)
   },
 }
 

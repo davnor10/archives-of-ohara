@@ -88,6 +88,7 @@ function AppRoutes() {
           onIgnore={() => setUpdateInfo(null)}
         />
       )}
+
     </>
   )
 }

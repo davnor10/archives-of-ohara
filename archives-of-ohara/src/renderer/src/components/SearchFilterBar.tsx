@@ -160,7 +160,7 @@ export default function SearchFilterBar({
         <button
           className="filter-mode-toggle"
           onClick={() => onFilterModeChange(filterMode === 'or' ? 'and' : 'or')}
-          title={filterMode === 'or' ? 'Matching ANY tag — click to require ALL' : 'Matching ALL tags — click to match ANY'}
+          title={filterMode === 'or' ? 'Matching ANY tag - click to require ALL' : 'Matching ALL tags - click to match ANY'}
         >
           {filterMode.toUpperCase()}
         </button>

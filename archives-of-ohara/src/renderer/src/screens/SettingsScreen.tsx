@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useStore } from '../store'
 import PageWrapper from '../components/PageWrapper'
 import { tagColor } from '../components/TagPicker'
+import OrphanModal from '../components/OrphanModal'
+import type { OrphanEntry } from '../../../preload/index.d'
 
 
 const DARK_THEMES = [
@@ -30,6 +32,8 @@ export default function SettingsScreen() {
   const [saved, setSaved] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [tagError, setTagError] = useState('')
+  const [orphans, setOrphans] = useState<OrphanEntry[] | null>(null)
+  const [orphanChecking, setOrphanChecking] = useState(false)
   const [appVersion, setAppVersion] = useState('')
   const [updateStatus, setUpdateStatus] = useState<'idle' | 'checking' | 'available' | 'downloaded' | 'up-to-date' | 'error' | 'dev'>('idle')
   const [updateVersion, setUpdateVersion] = useState('')
@@ -114,6 +118,7 @@ export default function SettingsScreen() {
   const customTags = tags.filter((t) => !t.is_default)
 
   return (
+    <>
     <PageWrapper>
       <div className="screen-header">
         <div>
@@ -173,7 +178,7 @@ export default function SettingsScreen() {
           onChange={(e) => setTmdbKey(e.target.value)}
         />
         <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 6 }}>
-          Get a free key at themoviedb.org — used to fetch posters and metadata.
+          Get a free key at themoviedb.org - used to fetch posters and metadata.
         </div>
       </div>
 
@@ -418,6 +423,37 @@ export default function SettingsScreen() {
         </div>
       </div>
 
+      {/* Library Health Section */}
+      <div className="settings-section">
+        <div className="settings-section-title">Library Health</div>
+        <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
+          Check for entries whose files can't be found on disk. Only inspects drives that are currently connected -
+          entries on disconnected drives are never touched.
+          Run a scan first if you just plugged in your drive.
+
+        </div>
+        <button
+          className="btn btn-ghost"
+          disabled={orphanChecking}
+          onClick={async () => {
+            setOrphanChecking(true)
+            try {
+              const entries = await window.api.getOfflineEntries()
+              setOrphans(entries)
+            } finally {
+              setOrphanChecking(false)
+            }
+          }}
+        >
+          {orphanChecking ? '⟳ Checking…' : '⚠ Clean missing files'}
+        </button>
+        {orphans !== null && orphans.length === 0 && (
+          <div style={{ color: 'var(--text-dim)', fontSize: 13, marginTop: 10 }}>
+            ✓ No missing files found on connected drives.
+          </div>
+        )}
+      </div>
+
       {/* Save / Scan / TMDB buttons */}
       <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
         <button className="btn btn-primary" onClick={handleSave}>
@@ -446,7 +482,7 @@ export default function SettingsScreen() {
 
         {updateStatus === 'available' && (
           <div style={{ color: 'var(--seafoam)', fontSize: 13, marginBottom: 12 }}>
-            {updateVersion ? `v${updateVersion}` : 'An update'} is available — downloading…
+            {updateVersion ? `v${updateVersion}` : 'An update'} is available - downloading…
           </div>
         )}
         {updateStatus === 'downloaded' && (
@@ -509,5 +545,10 @@ export default function SettingsScreen() {
         </div>
       </div>
     </PageWrapper>
+
+    {orphans && orphans.length > 0 && (
+      <OrphanModal orphans={orphans} onClose={() => setOrphans(null)} />
+    )}
+    </>
   )
 }

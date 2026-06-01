@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { MediaItem, Episode } from '../../../preload/index.d'
 import PlaceholderPoster from './PlaceholderPoster'
@@ -28,7 +28,7 @@ function formatDur(sec: number): string {
   return `${m}m`
 }
 
-export default function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpisode, onClick }: Props) {
+function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpisode, onClick }: Props) {
   const { tags, mediaTags, setFavorite, updateLastWatched } = useStore()
   const navigate = useNavigate()
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
@@ -125,7 +125,7 @@ export default function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpi
                           showId: item.id,
                           seasonNumber: nextEpisode.season,
                           autoSubtitleOverride: item.auto_subtitle ?? null,
-                          title: `${item.title_override ?? item.title} — ${formatNextEp(nextEpisode)}`,
+                          title: `${item.title_override ?? item.title} - ${formatNextEp(nextEpisode)}`,
                         }
                       })
                     }}
@@ -137,6 +137,17 @@ export default function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpi
             </div>
           )}
         </div>
+        {(item.missing_count ?? 0) > 0 && (
+          <div
+            className="media-card-offline-badge"
+            title={item.type === 'show'
+              ? `${item.missing_count} episode${item.missing_count === 1 ? '' : 's'} not found on disk`
+              : 'File not found on disk'}
+          >
+            ⚠
+          </div>
+        )}
+
         {hasBookmark && (
           <div className="media-card-bookmark-wrap">
             <span className="media-card-bookmark">🔖</span>
@@ -167,3 +178,9 @@ export default function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpi
     </>
   )
 }
+
+export default memo(MediaCard, (prev, next) =>
+  prev.item === next.item &&
+  prev.hasBookmark === next.hasBookmark &&
+  prev.nextEpisode === next.nextEpisode
+)

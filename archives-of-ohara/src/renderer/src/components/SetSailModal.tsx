@@ -207,7 +207,7 @@ export default function SetSailModal({ open, onClose, type }: Props) {
                   ) : (
                     <div className="sail-result-card" style={{ position: 'relative', zIndex: 1 }}>
                       <div style={{ color: 'var(--text-dim)', fontSize: 13 }}>
-                        {pool.length === 0 ? 'No media found — scan your library first' : 'Charting course…'}
+                        {pool.length === 0 ? 'No media found - scan your library first' : 'Charting course…'}
                       </div>
                     </div>
                   )}

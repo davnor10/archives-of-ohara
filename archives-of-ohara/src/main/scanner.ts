@@ -1,33 +1,16 @@
 import { readdirSync, statSync, existsSync } from 'fs'
 import { join, extname } from 'path'
-
-function pruneOrphans(): void {
-  const allEps = db.prepare('SELECT id, path FROM episodes').all() as { id: number; path: string }[]
-  const deleteEp = db.prepare('DELETE FROM episodes WHERE id=?')
-  const pruneEps = db.transaction(() => {
-    for (const ep of allEps) {
-      if (!existsSync(ep.path)) deleteEp.run(ep.id)
-    }
-  })
-  pruneEps()
-
-  // Remove shows with no episodes remaining
-  db.prepare(
-    `DELETE FROM media_items WHERE type='show' AND id NOT IN (SELECT DISTINCT show_id FROM episodes)`
-  ).run()
-
-  const allMovies = db
-    .prepare("SELECT id, path FROM media_items WHERE type='movie'")
-    .all() as { id: number; path: string }[]
-  const deleteItem = db.prepare('DELETE FROM media_items WHERE id=?')
-  const pruneMovies = db.transaction(() => {
-    for (const m of allMovies) {
-      if (!existsSync(m.path)) deleteItem.run(m.id)
-    }
-  })
-  pruneMovies()
-}
 import db from './db'
+
+export interface OrphanEntry {
+  id: number
+  type: 'episode' | 'movie'
+  title: string
+  path: string
+  missingCount: number
+  showTitle?: string
+}
+
 
 const VIDEO_EXTS = new Set(['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.m4v'])
 
@@ -86,21 +69,23 @@ function getOrCreateShow(title: string, showPath: string, now: string): number {
     .get(showPath)!.id
 }
 
+// Upserts reset missing_count to 0 — if the scanner finds the file, it's no longer missing
 const upsertEp = db.prepare(`
-  INSERT INTO episodes (show_id,season,episode_number,title,path,scanned_at)
-  VALUES (?,?,?,?,?,?)
+  INSERT INTO episodes (show_id,season,episode_number,title,path,scanned_at,missing_count)
+  VALUES (?,?,?,?,?,?,0)
   ON CONFLICT(path) DO UPDATE SET
     show_id=excluded.show_id,
     season=excluded.season,
     episode_number=excluded.episode_number,
     title=excluded.title,
-    scanned_at=excluded.scanned_at
+    scanned_at=excluded.scanned_at,
+    missing_count=0
 `)
 
 const upsertMovie = db.prepare(`
-  INSERT INTO media_items (type,title,path,scanned_at)
-  VALUES ('movie',?,?,?)
-  ON CONFLICT(path) DO UPDATE SET title=excluded.title, scanned_at=excluded.scanned_at
+  INSERT INTO media_items (type,title,path,scanned_at,missing_count)
+  VALUES ('movie',?,?,?,0)
+  ON CONFLICT(path) DO UPDATE SET title=excluded.title, scanned_at=excluded.scanned_at, missing_count=0
 `)
 
 function parseSeasonNum(name: string): number | null {
@@ -215,6 +200,52 @@ function scanMovies(rootPaths: string[], now: string): void {
   }
 }
 
+// Sets missing_count=1 for any file that can't be found (drive offline or file deleted),
+// missing_count=0 for files that exist. The scan upsert already resets to 0 for found files,
+// so reconnecting the drive and scanning will clear the badge automatically.
+function checkOrphans(showRoots: string[], movieRoots: string[]): void {
+  const underRoot = (filePath: string, roots: string[]): boolean =>
+    roots.some((r) => filePath.startsWith(r + '/') || filePath.startsWith(r + '\\'))
+
+  type EpRow = { id: number; path: string; missing_count: number }
+  const allEps = db.prepare('SELECT id, path, missing_count FROM episodes').all() as EpRow[]
+  const epUpdates: Array<{ id: number; flag: number }> = []
+  for (const ep of allEps) {
+    if (!underRoot(ep.path, showRoots)) continue
+    const flag = existsSync(ep.path) ? 0 : 1
+    if (flag !== ep.missing_count) epUpdates.push({ id: ep.id, flag })
+  }
+  if (epUpdates.length) {
+    const updateEp = db.prepare('UPDATE episodes SET missing_count=? WHERE id=?')
+    db.transaction(() => { for (const u of epUpdates) updateEp.run(u.flag, u.id) })()
+  }
+
+  type MovieRow = { id: number; path: string; missing_count: number }
+  const allMovies = db.prepare(`SELECT id, path, missing_count FROM media_items WHERE type='movie'`).all() as MovieRow[]
+  const movieUpdates: Array<{ id: number; flag: number }> = []
+  for (const m of allMovies) {
+    if (!underRoot(m.path, movieRoots)) continue
+    const flag = existsSync(m.path) ? 0 : 1
+    if (flag !== m.missing_count) movieUpdates.push({ id: m.id, flag })
+  }
+  if (movieUpdates.length) {
+    const updateMovie = db.prepare('UPDATE media_items SET missing_count=? WHERE id=?')
+    db.transaction(() => { for (const u of movieUpdates) updateMovie.run(u.flag, u.id) })()
+  }
+}
+
+export function cleanOrphans(episodeIds: number[], movieIds: number[]): void {
+  if (episodeIds.length) {
+    const del = db.prepare('DELETE FROM episodes WHERE id=?')
+    db.transaction(() => { for (const id of episodeIds) del.run(id) })()
+    db.prepare(`DELETE FROM media_items WHERE type='show' AND id NOT IN (SELECT DISTINCT show_id FROM episodes)`).run()
+  }
+  if (movieIds.length) {
+    const del = db.prepare('DELETE FROM media_items WHERE id=?')
+    db.transaction(() => { for (const id of movieIds) del.run(id) })()
+  }
+}
+
 export function scanMedia(): { shows: number; movies: number } {
   const getSetting = db.prepare<[string], { value: string }>('SELECT value FROM settings WHERE key=?')
   const showPaths: string[] = JSON.parse(getSetting.get('show_paths')?.value ?? '[]')
@@ -224,7 +255,7 @@ export function scanMedia(): { shows: number; movies: number } {
   scanShows(showPaths, now)
   scanMovies(moviePaths, now)
 
-  pruneOrphans()
+  checkOrphans(showPaths, moviePaths)
 
   const shows = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='show'").get() as { n: number }).n
   const movies = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='movie'").get() as { n: number }).n

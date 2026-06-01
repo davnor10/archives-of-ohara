@@ -482,6 +482,19 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
   margin-top: 4px;
 }
 
+.media-card-offline-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(180, 60, 30, 0.88);
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  line-height: 1.4;
+}
+
 .media-card-bookmark-wrap {
   position: absolute;
   top: 6px;
@@ -648,6 +661,19 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
 
 .show-detail-poster img { width: 100%; display: block; }
 
+.poster-change-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  background: rgba(0,0,0,0.55);
+  opacity: 0;
+  transition: opacity 0.18s;
+}
+.show-detail-poster:hover .poster-change-overlay { opacity: 1; }
+
 .show-detail-info { flex: 1; }
 .show-detail-title {
   font-family: 'Cinzel', serif;
@@ -661,13 +687,17 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
 .show-detail-overview { color: var(--text-mid); font-size: 14px; line-height: 1.6; margin-bottom: 10px; }
 
 .show-detail-title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
   margin-bottom: 8px;
+  line-height: 1.3;
 }
 .show-detail-title-row .show-detail-title {
+  display: inline;
   margin-bottom: 0;
+}
+.show-detail-title-row .title-edit-btn {
+  display: inline-block;
+  vertical-align: middle;
+  margin-left: 2px;
 }
 .title-edit-btn {
   background: none;
@@ -1778,9 +1808,9 @@ input[type='range'].ui-scale-slider {
 .episode-view-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   padding: 0 24px 14px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   border-bottom: 1px solid rgba(201,168,76,0.1);
   margin-bottom: 4px;
 }

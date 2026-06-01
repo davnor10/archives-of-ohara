@@ -69,6 +69,8 @@ try { db.exec('ALTER TABLE media_items ADD COLUMN pinned_tmdb_id INTEGER') } cat
 try { db.exec('ALTER TABLE media_items ADD COLUMN favorite INTEGER DEFAULT 0') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN title_override TEXT') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN auto_subtitle INTEGER') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE episodes ADD COLUMN missing_count INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE media_items ADD COLUMN missing_count INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
 
 // Default tags aligned with TMDB genre names (movies + TV combined)
 const DEFAULT_TAGS = [

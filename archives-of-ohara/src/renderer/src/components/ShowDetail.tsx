@@ -5,6 +5,7 @@ import { useStore } from '../store'
 import type { MediaItem, Episode } from '../../../preload/index.d'
 import PlaceholderPoster from './PlaceholderPoster'
 import TagPicker, { tagColor } from './TagPicker'
+import PosterPickerModal from './PosterPickerModal'
 
 interface Props {
   show: MediaItem
@@ -13,14 +14,13 @@ interface Props {
 }
 
 export default function ShowDetail({ show, onClose, initialSeason }: Props) {
-  const { episodes, loadEpisodes, reloadEpisodes, setEpisodeWatched, tags, mediaTags, updateLastWatched, setTitleOverride, setSeriesSubtitle } = useStore()
-  const [bookmarks, setBookmarks] = useState<Record<string, number>>({})
-  const [continueEp, setContinueEp] = useState<Episode | null>(null)
+  const { episodes, loadEpisodes, reloadEpisodes, setEpisodeWatched, tags, mediaTags, updateLastWatched, setTitleOverride, setSeriesSubtitle, setFavorite, bookmarks: storeBookmarks, removeBookmark } = useStore()
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null)
   const [editingTags, setEditingTags] = useState(false)
   const [localDurations, setLocalDurations] = useState<Record<string, number>>({})
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
+  const [posterPickerOpen, setPosterPickerOpen] = useState(false)
   const probedRef = useRef<Set<string>>(new Set())
   const navigate = useNavigate()
 
@@ -47,27 +47,27 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
 
   const eps: Episode[] = episodes[show.id] ?? []
 
+  // Derive bookmarks and continueEp from the global store instead of N serial IPC calls
+  const bookmarks = useMemo(() => {
+    const bm: Record<string, number> = {}
+    for (const ep of eps) {
+      const v = storeBookmarks[ep.path]
+      if (v != null) bm[ep.path] = v
+    }
+    return bm
+  }, [eps, storeBookmarks])
+
+  const continueEp = useMemo(() => {
+    let result: Episode | null = null
+    for (const ep of eps) {
+      if (bookmarks[ep.path] != null) result = ep
+    }
+    return result
+  }, [eps, bookmarks])
+
   useEffect(() => {
     loadEpisodes(show.id)
   }, [show.id])
-
-  useEffect(() => {
-    if (!eps.length) return
-    const fetchBookmarks = async () => {
-      const bm: Record<string, number> = {}
-      let latestEp: Episode | null = null
-      for (const ep of eps) {
-        const b = await window.api.getBookmark(ep.path)
-        if (b) {
-          bm[ep.path] = b.timestamp_seconds
-          latestEp = ep
-        }
-      }
-      setBookmarks(bm)
-      setContinueEp(latestEp)
-    }
-    fetchBookmarks()
-  }, [eps])
 
   const seasons = useMemo(() => {
     const map: Record<number, Episode[]> = {}
@@ -123,9 +123,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
 
   const removeEpBookmark = async (e: React.MouseEvent, ep: Episode) => {
     e.stopPropagation()
-    await window.api.deleteBookmark(ep.path)
-    setBookmarks((prev) => { const next = { ...prev }; delete next[ep.path]; return next })
-    if (continueEp?.id === ep.id) setContinueEp(null)
+    await removeBookmark(ep.path)
   }
 
   const playEpisode = (ep: Episode) => {
@@ -138,7 +136,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
         showId: show.id,
         seasonNumber: ep.season,
         autoSubtitleOverride: show.auto_subtitle ?? null,
-        title: `${displayTitle} — ${ep.season > 0 && seasons.length > 1 ? `S${String(ep.season).padStart(2, '0')}` : ''}${ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : ''} ${ep.title ?? ''}`.trim()
+        title: `${displayTitle} - ${ep.season > 0 && seasons.length > 1 ? `S${String(ep.season).padStart(2, '0')}` : ''}${ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : ''} ${ep.title ?? ''}`.trim()
       }
     })
   }
@@ -179,6 +177,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
   const showSeasonPicker = selectedSeason === null && seasons.length > 1
 
   return (
+    <>
     <motion.div
       className="show-detail-overlay"
       initial={{ opacity: 0 }}
@@ -197,17 +196,23 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
       >
         {/* ── Header ─────────────────────────────────────────────────────── */}
         <div className="show-detail-header">
-          <div className="show-detail-poster">
+          <div
+            className="show-detail-poster"
+            onClick={() => setPosterPickerOpen(true)}
+            title="Change poster"
+            style={{ cursor: 'pointer', position: 'relative' }}
+          >
             {show.poster_base64 ? (
               <img src={show.poster_base64} alt={show.title} />
             ) : (
               <PlaceholderPoster title={show.title} />
             )}
+            <div className="poster-change-overlay">🖼</div>
           </div>
 
           <div className="show-detail-info">
             <div className="show-detail-title-row">
-              <div className="show-detail-title">{displayTitle}</div>
+              <span className="show-detail-title">{displayTitle}</span>
               <button className="title-edit-btn" onClick={handleEditTitle} title="Override title">✎</button>
             </div>
 
@@ -272,6 +277,14 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                 onClick={() => setSeriesSubtitle(show.id, 0)}
                 title="Never auto-play subtitles for this series"
               >Off</button>
+              <button
+                className="tag-edit-inline-btn"
+                onClick={() => setFavorite(show.id, 'show', !show.favorite)}
+                title={show.favorite ? 'Remove from favorites' : 'Add to favorites'}
+                style={show.favorite ? { color: 'var(--gold)', borderColor: 'rgba(201,168,76,0.6)' } : undefined}
+              >
+                {show.favorite ? '★' : '☆'}
+              </button>
             </div>
 
             <div className="show-detail-tags-row">
@@ -401,7 +414,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
 
               {eps.length > 0 && (watchedCount === 0 || watchedCount === eps.length) && !continueEp && (
                 <button className="continue-btn" style={{ fontSize: 12, padding: '5px 12px', marginTop: 0 }} onClick={() => playEpisode(eps[0])}>
-                  ▶ Start watching
+                  ▶ Start
                 </button>
               )}
               {continueEp && (
@@ -415,8 +428,8 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                 </button>
               )}
 
-              <button className="btn btn-ghost btn-sm" onClick={() => playRandom(currentSeasonEps)}>
-                🎲 Random
+              <button className="btn btn-ghost btn-sm" onClick={() => playRandom(currentSeasonEps)} title="Random episode">
+                🎲
               </button>
 
               <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
@@ -455,7 +468,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                     </button>
 
                     <span className="ep-num">
-                      {ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : '—'}
+                      {ep.episode_number != null ? `E${String(ep.episode_number).padStart(2, '0')}` : '-'}
                     </span>
 
                     <div className="ep-title-wrap">
@@ -495,5 +508,10 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
         )}
       </motion.div>
     </motion.div>
+
+    {posterPickerOpen && (
+      <PosterPickerModal item={show} onClose={() => setPosterPickerOpen(false)} />
+    )}
+    </>
   )
 }

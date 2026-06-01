@@ -182,6 +182,13 @@ export default function PlayerScreen() {
     window.api.needsTranscode(path, 0).then(setIsTranscoded)
   }, [path])
 
+  // ── Listen for ffmpeg transcode errors from the main process ──────────────
+  useEffect(() => {
+    return window.api.onTranscodeError((errMsg) => {
+      setVideoError(`Playback failed - transcode error:\n${errMsg}`)
+    })
+  }, [])
+
   // ── Load streams (audio tracks + subtitle tracks) ──────────────────────────
   useEffect(() => {
     if (!path) return
@@ -508,7 +515,7 @@ export default function PlayerScreen() {
               window.api.fileExists(path).then((exists) => {
                 setVideoError(exists
                   ? `NETWORK: ${msg}`
-                  : `File not found — it may have been moved or deleted.\n\n${path}`)
+                  : `File not found - it may have been moved or deleted.\n\n${path}`)
               })
               return
             }

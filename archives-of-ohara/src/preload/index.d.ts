@@ -14,6 +14,7 @@ export interface MediaItem {
   last_watched_at?: string
   favorite?: number // 1 if favorited, 0 or absent otherwise
   auto_subtitle?: number | null // NULL = use global, 0 = off, 1 = on
+  missing_count?: number // movies: 1 if file offline; shows: count of offline episodes
 }
 
 export interface Episode {
@@ -59,6 +60,15 @@ export interface TmdbResult {
   overview?: string
 }
 
+export interface OrphanEntry {
+  id: number
+  type: 'episode' | 'movie'
+  title: string
+  path: string
+  missingCount: number
+  showTitle?: string
+}
+
 export interface Tag {
   id: number
   name: string
@@ -88,6 +98,8 @@ export interface OharaAPI {
   saveSettings: (data: Partial<AppSettings>) => Promise<void>
   selectFolder: () => Promise<string | null>
   scanMedia: () => Promise<{ shows: number; movies: number }>
+  cleanOrphans: (episodeIds: number[], movieIds: number[]) => Promise<void>
+  getOfflineEntries: () => Promise<OrphanEntry[]>
   fetchTmdb: () => Promise<boolean>
   getMedia: (type: 'movie' | 'show') => Promise<MediaItem[]>
   getEpisodes: (showId: number) => Promise<Episode[]>
@@ -123,6 +135,7 @@ export interface OharaAPI {
   onUpdateNotAvailable: (cb: () => void) => void
   onUpdateDownloaded: (cb: () => void) => void
   onUpdateError: (cb: (message: string) => void) => void
+  onTranscodeError: (cb: (message: string) => void) => () => void
 }
 
 declare global {

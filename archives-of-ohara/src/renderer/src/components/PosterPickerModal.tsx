@@ -21,13 +21,13 @@ export default function PosterPickerModal({ item, onClose }: Props) {
   const search = async (q: string) => {
     if (!q.trim()) return
     if (!settings.tmdb_api_key) {
-      setError('No TMDB API key configured — add one in Settings.')
+      setError('No TMDB API key configured - add one in Settings.')
       return
     }
     // Guard against stale preload (app needs restart after updates)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof (window.api as any).searchTmdb !== 'function') {
-      setError('Search unavailable — please restart the app.')
+      setError('Search unavailable - please restart the app.')
       return
     }
     setLoading(true)

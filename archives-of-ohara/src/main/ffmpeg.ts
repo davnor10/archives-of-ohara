@@ -115,14 +115,13 @@ const COPY_VIDEO = new Set(['h264', 'avc', 'av1'])
 // Spawns ffmpeg transcoding to fragmented MP4 piped to stdout.
 export function spawnTranscode(filePath: string, opts: TranscodeOpts = {}, streams?: MediaStream[]) {
   const { audioIdx = 0, startSec } = opts
-  const args: string[] = ['-hide_banner', '-loglevel', 'error']
+  // Cap at 4 threads globally — limits both HEVC decoder and H.264 encoder,
+  // preventing CPU starvation of the Electron event loop.
+  const args: string[] = ['-hide_banner', '-loglevel', 'error', '-threads', '4']
 
   const videoCodec = streams?.find((s) => s.codecType === 'video')?.codecName ?? ''
   const willCopy = COPY_VIDEO.has(videoCodec)
 
-  // Hardware-accelerate input decoding when re-encoding (HEVC→H.264 etc.).
-  // Falls back to software silently if no hardware decoder is available.
-  if (!willCopy) args.push('-hwaccel', 'auto')
 
   if (startSec && startSec > 0) args.push('-ss', String(startSec))
   args.push('-i', filePath)
@@ -136,24 +135,21 @@ export function spawnTranscode(filePath: string, opts: TranscodeOpts = {}, strea
     // -g 48: keyframe every 48 frames (~2 s at 24 fps) so frag_keyframe creates small fragments
     // without this libx264 defaults to keyint=250 (~10 s) which causes visible 10-second jumps
     args.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '23', '-preset', 'ultrafast',
-      '-g', '48', '-keyint_min', '24', '-threads', '2')
+      '-g', '48', '-keyint_min', '24', '-threads', '0')
   }
 
   args.push('-c:a', 'aac', '-b:a', '192k', '-ac', '2')
   // frag_keyframe: one MP4 fragment per keyframe — required for streaming to <video>
   // default_base_moof: correct base-data-offset in each fragment for seeks
-  // No empty_moov: moov is written after encoder init so avcC contains real SPS/PPS.
-  // empty_moov writes a placeholder avcC before the encoder starts; Chromium may
-  // reject the placeholder codec config and fire SRC_NOT_SUPPORTED.
-  args.push('-movflags', 'frag_keyframe+default_base_moof')
+  // empty_moov: writes moov (with valid avcC) at encoder init — before the first
+  //   frame is decoded. Without this, Chromium receives only the 24-byte ftyp box
+  //   and stalls while waiting for moov, which doesn't arrive until the first
+  //   HEVC frame is decoded and encoded (~2–5 s on software decode).
+  args.push('-movflags', 'frag_keyframe+default_base_moof+empty_moov')
   args.push('-f', 'mp4', 'pipe:1')
 
   const proc = spawn(getFfmpegPath(), args, { stdio: ['ignore', 'pipe', 'pipe'] })
-  // Drain stderr so a full pipe buffer never stalls the ffmpeg process
-  proc.stderr?.resume()
-  proc.on('close', (code) => {
-    if (code !== 0 && code !== null) console.error('[ffmpeg] Transcode exited with code', code, filePath)
-  })
+  // Caller is responsible for draining proc.stderr to prevent pipe stalls
   return proc
 }
 
