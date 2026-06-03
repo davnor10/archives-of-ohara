@@ -38,7 +38,7 @@ function sortItems(items: MediaItem[], sort: SortKey, dir: 'asc' | 'desc'): Medi
 }
 
 export default function SeriesScreen() {
-  const { shows, loadShows, mediaTags, nextEpisodes, loadNextEpisodes } = useStore()
+  const { shows, loadShows, others, loadOthers, mediaTags, nextEpisodes, loadNextEpisodes, bookmarks, removeBookmark } = useStore()
   const navigate = useNavigate()
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const selected = useMemo(() => shows.find((s) => s.id === selectedId) ?? null, [shows, selectedId])
@@ -53,6 +53,7 @@ export default function SeriesScreen() {
   useEffect(() => {
     loadShows()
     loadNextEpisodes()
+    loadOthers()
   }, [])
 
   useEffect(() => {
@@ -90,6 +91,17 @@ export default function SeriesScreen() {
   const handleCardClick = (show: MediaItem) => {
     setSelectedId((prev) => (prev === show.id ? null : show.id))
     setInitialSeason(undefined)
+  }
+
+  const handlePlayOther = (item: MediaItem) => {
+    navigate('/player', {
+      state: {
+        path: item.path,
+        title: item.title_override ?? item.title,
+        year: item.year,
+        durationSeconds: item.duration_seconds,
+      }
+    })
   }
 
   const hasFilter = query !== '' || activeTags.length > 0
@@ -171,6 +183,36 @@ export default function SeriesScreen() {
             )}
           </AnimatePresence>
         </>
+      )}
+
+      {others.length > 0 && (
+        <div className="other-section">
+          <div className="other-section-header">
+            <span className="other-section-title">Other</span>
+            <span className="other-section-hint">Files not organized into show folders — move them into subfolders for proper series tracking</span>
+          </div>
+          <div className="media-grid">
+            <AnimatePresence mode="popLayout">
+              {others.map((item) => (
+                <motion.div
+                  key={item.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.94 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.94 }}
+                  transition={{ duration: 0.18, ease: 'easeOut' }}
+                >
+                  <MediaCard
+                    item={item}
+                    hasBookmark={!!bookmarks[item.path]}
+                    onRemoveBookmark={() => removeBookmark(item.path)}
+                    onClick={() => handlePlayOther(item)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
       )}
     </PageWrapper>
   )

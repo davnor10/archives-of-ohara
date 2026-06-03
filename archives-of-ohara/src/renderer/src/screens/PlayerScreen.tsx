@@ -332,6 +332,7 @@ export default function PlayerScreen() {
       seekingRef.current = true
       setSeekOffset(Math.floor(clamped))
     } else {
+      seekingRef.current = true
       if (videoRef.current) videoRef.current.currentTime = clamped
     }
   }, [duration, isTranscoded])
@@ -538,6 +539,7 @@ export default function PlayerScreen() {
             const d = e.currentTarget.duration
             if (isFinite(d) && d > 0) setDuration((prev) => (prev > 0 ? prev : d))
           }}
+          onSeeked={() => { if (!isTranscoded) seekingRef.current = false }}
           onEnded={handleEnded}
         />
 

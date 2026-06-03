@@ -88,6 +88,12 @@ const upsertMovie = db.prepare(`
   ON CONFLICT(path) DO UPDATE SET title=excluded.title, scanned_at=excluded.scanned_at, missing_count=0
 `)
 
+const upsertLoose = db.prepare(`
+  INSERT INTO media_items (type,title,path,scanned_at,missing_count,is_loose)
+  VALUES ('movie',?,?,?,0,1)
+  ON CONFLICT(path) DO UPDATE SET title=excluded.title, scanned_at=excluded.scanned_at, missing_count=0
+`)
+
 function parseSeasonNum(name: string): number | null {
   // "Season 1", "Part 2", "Arc 3", "Vol 1", "Saga 2", "Cour 1", "Series 1"
   let m = name.match(/(?:season|part|vol(?:ume)?|arc|saga|cour|series)\s*(\d+)/i)
@@ -172,6 +178,14 @@ function scanShows(rootPaths: string[], now: string): void {
         }
       }
     }
+
+    // ── Loose video files directly in the show root (not inside a show folder) ──
+    for (const name of safeReadDir(root)) {
+      const p = join(root, name)
+      if (safeStat(p)?.isFile() && isVideo(name)) {
+        upsertLoose.run(cleanTitle(name), p, now)
+      }
+    }
   }
 }
 
@@ -200,15 +214,20 @@ function scanMovies(rootPaths: string[], now: string): void {
   }
 }
 
+function underRoot(filePath: string, roots: string[]): boolean {
+  return roots.some((r) => {
+    const root = (r.endsWith('/') || r.endsWith('\\')) ? r : r + '/'
+    return filePath.startsWith(root)
+  })
+}
+
 // Sets missing_count=1 for any file that can't be found (drive offline or file deleted),
 // missing_count=0 for files that exist. The scan upsert already resets to 0 for found files,
 // so reconnecting the drive and scanning will clear the badge automatically.
 function checkOrphans(showRoots: string[], movieRoots: string[]): void {
-  const underRoot = (filePath: string, roots: string[]): boolean =>
-    roots.some((r) => filePath.startsWith(r + '/') || filePath.startsWith(r + '\\'))
 
   type EpRow = { id: number; path: string; missing_count: number }
-  const allEps = db.prepare('SELECT id, path, missing_count FROM episodes').all() as EpRow[]
+  const allEps = db.prepare<[], EpRow>('SELECT id, path, missing_count FROM episodes').all()
   const epUpdates: Array<{ id: number; flag: number }> = []
   for (const ep of allEps) {
     if (!underRoot(ep.path, showRoots)) continue
@@ -220,11 +239,12 @@ function checkOrphans(showRoots: string[], movieRoots: string[]): void {
     db.transaction(() => { for (const u of epUpdates) updateEp.run(u.flag, u.id) })()
   }
 
-  type MovieRow = { id: number; path: string; missing_count: number }
-  const allMovies = db.prepare(`SELECT id, path, missing_count FROM media_items WHERE type='movie'`).all() as MovieRow[]
+  type MovieRow = { id: number; path: string; missing_count: number; is_loose: number }
+  const allMovies = db.prepare(`SELECT id, path, missing_count, is_loose FROM media_items WHERE type='movie'`).all() as MovieRow[]
   const movieUpdates: Array<{ id: number; flag: number }> = []
   for (const m of allMovies) {
-    if (!underRoot(m.path, movieRoots)) continue
+    const roots = m.is_loose ? showRoots : movieRoots
+    if (!underRoot(m.path, roots)) continue
     const flag = existsSync(m.path) ? 0 : 1
     if (flag !== m.missing_count) movieUpdates.push({ id: m.id, flag })
   }
@@ -247,9 +267,6 @@ export function cleanOrphans(episodeIds: number[], movieIds: number[]): void {
 }
 
 function removeUnconfiguredEntries(showRoots: string[], movieRoots: string[]): void {
-  const underRoot = (filePath: string, roots: string[]): boolean =>
-    roots.some((r) => filePath.startsWith(r + '/') || filePath.startsWith(r + '\\'))
-
   type Row = { id: number; path: string }
 
   const staleEpIds = (db.prepare('SELECT id, path FROM episodes').all() as Row[])
@@ -262,8 +279,12 @@ function removeUnconfiguredEntries(showRoots: string[], movieRoots: string[]): v
     db.prepare(`DELETE FROM media_items WHERE type='show' AND id NOT IN (SELECT DISTINCT show_id FROM episodes)`).run()
   }
 
-  const staleMovieIds = (db.prepare(`SELECT id, path FROM media_items WHERE type='movie'`).all() as Row[])
-    .filter((m) => !underRoot(m.path, movieRoots))
+  type MovieRow2 = { id: number; path: string; is_loose: number }
+  const staleMovieIds = (db.prepare(`SELECT id, path, is_loose FROM media_items WHERE type='movie'`).all() as MovieRow2[])
+    .filter((m) => {
+      const roots = m.is_loose ? showRoots : movieRoots
+      return !underRoot(m.path, roots)
+    })
     .map((m) => m.id)
 
   if (staleMovieIds.length) {
@@ -272,19 +293,26 @@ function removeUnconfiguredEntries(showRoots: string[], movieRoots: string[]): v
   }
 }
 
-export function scanMedia(): { shows: number; movies: number } {
+export function scanMedia(): { shows: number; movies: number; newEntries: number } {
   const getSetting = db.prepare<[string], { value: string }>('SELECT value FROM settings WHERE key=?')
   const showPaths: string[] = JSON.parse(getSetting.get('show_paths')?.value ?? '[]')
   const moviePaths: string[] = JSON.parse(getSetting.get('movie_paths')?.value ?? '[]')
 
-  const now = new Date().toISOString()
-  scanShows(showPaths, now)
-  scanMovies(moviePaths, now)
+  const countRows = (): number =>
+    (db.prepare('SELECT COUNT(*) as n FROM media_items').get() as { n: number }).n +
+    (db.prepare('SELECT COUNT(*) as n FROM episodes').get() as { n: number }).n
 
-  checkOrphans(showPaths, moviePaths)
-  removeUnconfiguredEntries(showPaths, moviePaths)
+  const before = countRows()
+  const now = new Date().toISOString()
+  db.transaction(() => {
+    scanShows(showPaths, now)
+    scanMovies(moviePaths, now)
+    checkOrphans(showPaths, moviePaths)
+    removeUnconfiguredEntries(showPaths, moviePaths)
+  })()
+  const newEntries = Math.max(0, countRows() - before)
 
   const shows = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='show'").get() as { n: number }).n
   const movies = (db.prepare("SELECT COUNT(*) as n FROM media_items WHERE type='movie'").get() as { n: number }).n
-  return { shows, movies }
+  return { shows, movies, newEntries }
 }

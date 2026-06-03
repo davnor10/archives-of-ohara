@@ -288,7 +288,9 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('scan-media', () => {
     const result = scanMedia()
-    fetchTmdbMetadata().catch((err) => console.error('[tmdb] Background fetch failed:', err))
+    if (result.newEntries > 0) {
+      fetchTmdbMetadata().catch((err) => console.error('[tmdb] Background fetch failed:', err))
+    }
     return result
   })
   ipcMain.handle('clean-orphans', (_e, episodeIds: number[], movieIds: number[]) => {
@@ -299,7 +301,7 @@ app.whenReady().then(async () => {
     return true
   })
 
-  ipcMain.handle('get-media', (_e, type: 'movie' | 'show') => {
+  ipcMain.handle('get-media', (_e, type: 'movie' | 'show' | 'other') => {
     if (type === 'show') {
       // missing_count = number of offline episodes (drive-accessible but file gone)
       return db.prepare(`
@@ -308,7 +310,10 @@ app.whenReady().then(async () => {
         FROM media_items m WHERE m.type='show' ORDER BY m.title ASC
       `).all()
     }
-    return db.prepare('SELECT * FROM media_items WHERE type=? ORDER BY title ASC').all(type)
+    if (type === 'other') {
+      return db.prepare(`SELECT * FROM media_items WHERE type='movie' AND is_loose=1 ORDER BY title ASC`).all()
+    }
+    return db.prepare(`SELECT * FROM media_items WHERE type=? AND (is_loose=0 OR is_loose IS NULL) ORDER BY title ASC`).all(type)
   })
 
   ipcMain.handle('get-offline-entries', () => {
@@ -329,7 +334,7 @@ app.whenReady().then(async () => {
   })
   ipcMain.handle('get-episodes', (_e, showId: number) => {
     return db
-      .prepare('SELECT * FROM episodes WHERE show_id=? ORDER BY season ASC, episode_number ASC, title ASC')
+      .prepare('SELECT * FROM episodes WHERE show_id=? ORDER BY season ASC, COALESCE(episode_number, 9999) ASC, title ASC')
       .all(showId)
   })
   ipcMain.handle('get-next-episodes', () => {

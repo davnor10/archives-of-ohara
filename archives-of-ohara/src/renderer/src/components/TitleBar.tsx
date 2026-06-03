@@ -4,9 +4,10 @@ import CloverLogo from './CloverLogo'
 
 interface Props {
   onSetSail: () => void
+  onHelp: () => void
 }
 
-export default function TitleBar({ onSetSail }: Props) {
+export default function TitleBar({ onSetSail, onHelp }: Props) {
   const { isScanning, scanMedia } = useStore()
   const location = useLocation()
   const isPlayer = location.pathname === '/player'
@@ -46,6 +47,10 @@ export default function TitleBar({ onSetSail }: Props) {
           ⟳ Scan
         </button>
 
+        <button className="btn-scan" onClick={onHelp} title="Getting started / help">
+          ?
+        </button>
+
         <NavLink
           to="/settings"
           className={({ isActive }) => `btn-scan${isActive ? ' active' : ''}`}
@@ -56,9 +61,9 @@ export default function TitleBar({ onSetSail }: Props) {
       </div>
 
       <div className="window-controls">
-        <button className="wc-btn wc-close" onClick={() => window.api.closeWindow()} />
         <button className="wc-btn wc-min" onClick={() => window.api.minimizeWindow()} />
         <button className="wc-btn wc-max" onClick={() => window.api.maximizeWindow()} />
+        <button className="wc-btn wc-close" onClick={() => window.api.closeWindow()} />
       </div>
     </header>
   )

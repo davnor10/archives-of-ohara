@@ -6,6 +6,7 @@ import TitleBar from './components/TitleBar'
 import LoadingOverlay from './components/LoadingOverlay'
 import SetSailModal from './components/SetSailModal'
 import UpdateModal from './components/UpdateModal'
+import GettingStartedModal from './components/GettingStartedModal'
 import SeriesScreen from './screens/SeriesScreen'
 import MoviesScreen from './screens/MoviesScreen'
 import PlayerScreen from './screens/PlayerScreen'
@@ -16,13 +17,18 @@ function AppRoutes() {
   const [sailOpen, setSailOpen] = useState(false)
   const [sailType, setSailType] = useState<'movie' | 'show'>('show')
   const [updateInfo, setUpdateInfo] = useState<{ version: string; ready: boolean } | null>(null)
-  const { loadTags, loadMediaTags, loadSettings, loadBookmarks, scanMedia, settings } = useStore()
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const { loadTags, loadMediaTags, loadSettings, loadBookmarks, scanMedia, saveSettings, settings } = useStore()
 
   useEffect(() => {
     loadTags()
     loadMediaTags()
-    loadSettings()
     loadBookmarks()
+    loadSettings().then(() => {
+      // Show welcome modal once for new users
+      const s = useStore.getState().settings
+      if (!s.has_seen_welcome) setWelcomeOpen(true)
+    })
     scanMedia()
   }, [])
 
@@ -57,7 +63,7 @@ function AppRoutes() {
       <div className="nautical-bg" />
 
       <div className="app-shell">
-        <TitleBar onSetSail={handleSetSail} />
+        <TitleBar onSetSail={handleSetSail} onHelp={() => setWelcomeOpen(true)} />
 
         <div className="page-content">
           <AnimatePresence mode="wait">
@@ -86,6 +92,15 @@ function AppRoutes() {
           ready={updateInfo.ready}
           onInstall={() => window.api.installUpdate()}
           onIgnore={() => setUpdateInfo(null)}
+        />
+      )}
+
+      {welcomeOpen && (
+        <GettingStartedModal
+          onClose={() => {
+            setWelcomeOpen(false)
+            saveSettings({ has_seen_welcome: true })
+          }}
         />
       )}
 

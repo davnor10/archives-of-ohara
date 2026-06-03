@@ -767,6 +767,31 @@ h3 { font-family: 'Cinzel', serif; font-weight: 400; }
 }
 
 .season-section { margin-top: 16px; }
+
+/* ===== Other Section ===== */
+.other-section {
+  margin-top: 48px;
+}
+.other-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--card-border);
+}
+.other-section-title {
+  font-family: 'Cinzel', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+.other-section-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  opacity: 0.6;
+}
 .season-title {
   font-family: 'Cinzel', serif;
   font-size: 14px;

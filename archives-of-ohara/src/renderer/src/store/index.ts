@@ -4,6 +4,7 @@ import type { MediaItem, Episode, AppSettings, Tag } from '../../../preload/inde
 interface AppStore {
   shows: MediaItem[]
   movies: MediaItem[]
+  others: MediaItem[]
   episodes: Record<number, Episode[]>
   nextEpisodes: Record<number, Episode>
   settings: AppSettings
@@ -16,6 +17,7 @@ interface AppStore {
 
   loadShows: () => Promise<void>
   loadMovies: () => Promise<void>
+  loadOthers: () => Promise<void>
   loadEpisodes: (showId: number) => Promise<void>
   reloadEpisodes: (showId: number) => Promise<void>
   loadNextEpisodes: () => Promise<void>
@@ -41,6 +43,7 @@ interface AppStore {
 export const useStore = create<AppStore>((set, get) => ({
   shows: [],
   movies: [],
+  others: [],
   episodes: {},
   nextEpisodes: {},
   settings: {},
@@ -61,6 +64,12 @@ export const useStore = create<AppStore>((set, get) => ({
     if (get().movies.length > 0) return
     const movies = await window.api.getMedia('movie')
     set({ movies: movies as MediaItem[] })
+  },
+
+  loadOthers: async () => {
+    if (get().others.length > 0) return
+    const others = await window.api.getMedia('other')
+    set({ others: others as MediaItem[] })
   },
 
   loadEpisodes: async (showId: number) => {
@@ -94,8 +103,8 @@ export const useStore = create<AppStore>((set, get) => ({
     set({ isScanning: true })
     try {
       const result = await window.api.scanMedia()
-      set({ lastScanResult: result, shows: [], movies: [], episodes: {}, nextEpisodes: {} })
-      await Promise.all([get().loadShows(), get().loadMovies()])
+      set({ lastScanResult: result, shows: [], movies: [], others: [], episodes: {}, nextEpisodes: {} })
+      await Promise.all([get().loadShows(), get().loadMovies(), get().loadOthers(), get().loadNextEpisodes()])
     } finally {
       set({ isScanning: false })
     }
@@ -177,7 +186,10 @@ export const useStore = create<AppStore>((set, get) => ({
 
   updateItemPoster: (mediaId: number, type: 'movie' | 'show', posterBase64: string) => {
     if (type === 'movie') {
-      set((s) => ({ movies: s.movies.map((m) => m.id === mediaId ? { ...m, poster_base64: posterBase64 } : m) }))
+      set((s) => ({
+        movies: s.movies.map((m) => m.id === mediaId ? { ...m, poster_base64: posterBase64 } : m),
+        others: s.others.map((m) => m.id === mediaId ? { ...m, poster_base64: posterBase64 } : m),
+      }))
     } else {
       set((s) => ({ shows: s.shows.map((sh) => sh.id === mediaId ? { ...sh, poster_base64: posterBase64 } : sh) }))
     }
@@ -187,7 +199,7 @@ export const useStore = create<AppStore>((set, get) => ({
     await window.api.setFavorite(mediaId, fav)
     const patch = (item: MediaItem) => item.id === mediaId ? { ...item, favorite: fav ? 1 : 0 } : item
     if (type === 'movie') {
-      set((s) => ({ movies: s.movies.map(patch) }))
+      set((s) => ({ movies: s.movies.map(patch), others: s.others.map(patch) }))
     } else {
       set((s) => ({ shows: s.shows.map(patch) }))
     }
@@ -197,7 +209,7 @@ export const useStore = create<AppStore>((set, get) => ({
     await window.api.setTitleOverride(mediaId, override)
     const patch = (item: MediaItem) => item.id === mediaId ? { ...item, title_override: override } : item
     if (type === 'movie') {
-      set((s) => ({ movies: s.movies.map(patch) }))
+      set((s) => ({ movies: s.movies.map(patch), others: s.others.map(patch) }))
     } else {
       set((s) => ({ shows: s.shows.map(patch) }))
     }

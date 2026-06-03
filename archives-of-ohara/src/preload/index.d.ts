@@ -87,6 +87,7 @@ export interface AppSettings {
   subtitle_bg?: boolean
   subtitle_sync_step?: number
   ui_scale?: number
+  has_seen_welcome?: boolean
 }
 
 export interface OharaAPI {
@@ -101,7 +102,7 @@ export interface OharaAPI {
   cleanOrphans: (episodeIds: number[], movieIds: number[]) => Promise<void>
   getOfflineEntries: () => Promise<OrphanEntry[]>
   fetchTmdb: () => Promise<boolean>
-  getMedia: (type: 'movie' | 'show') => Promise<MediaItem[]>
+  getMedia: (type: 'movie' | 'show' | 'other') => Promise<MediaItem[]>
   getEpisodes: (showId: number) => Promise<Episode[]>
   getNextEpisodes: () => Promise<Record<number, Episode>>
   saveBookmark: (mediaPath: string, seconds: number) => Promise<void>

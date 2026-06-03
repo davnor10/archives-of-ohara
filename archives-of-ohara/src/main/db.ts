@@ -71,6 +71,7 @@ try { db.exec('ALTER TABLE media_items ADD COLUMN title_override TEXT') } catch 
 try { db.exec('ALTER TABLE media_items ADD COLUMN auto_subtitle INTEGER') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE episodes ADD COLUMN missing_count INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
 try { db.exec('ALTER TABLE media_items ADD COLUMN missing_count INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
+try { db.exec('ALTER TABLE media_items ADD COLUMN is_loose INTEGER NOT NULL DEFAULT 0') } catch { /* column exists */ }
 
 // Default tags aligned with TMDB genre names (movies + TV combined)
 const DEFAULT_TAGS = [
