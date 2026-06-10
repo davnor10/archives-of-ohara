@@ -45,7 +45,7 @@ function AppRoutes() {
 
   useEffect(() => {
     window.api.setZoom(settings.ui_scale ?? 1.0)
-  }, [settings.ui_scale])
+  }, [settings.ui_scale, location.pathname])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme ?? 'ocean')

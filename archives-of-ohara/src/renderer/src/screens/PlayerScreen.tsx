@@ -111,6 +111,8 @@ export default function PlayerScreen() {
   const [showFrozenFrame, setShowFrozenFrame] = useState(false)
   const endedRef = useRef(false)
   const seekingRef = useRef(false)
+  const pendingNavRef = useRef<(() => void) | null>(null)
+  const [showMarkWatchedPrompt, setShowMarkWatchedPrompt] = useState(false)
   const lastSeekTimeRef = useRef(0)
   const lockControlsRef = useRef(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -347,10 +349,28 @@ export default function PlayerScreen() {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current)
   }, [isTranscoded, seekOffset, seekTo])
 
+  const doNavigateBack = useCallback(() => {
+    if (isEpisode && showId) navigate('/shows', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
+    else navigate(-1)
+  }, [isEpisode, showId, seasonNumber, navigate])
+
+  const tryExit = useCallback(() => {
+    const dur = durationRef.current
+    const sec = seekOffsetRef.current + (videoRef.current?.currentTime ?? playedRef.current * dur)
+    const remaining = dur - sec
+    if (isEpisode && !endedRef.current && dur > 0 && remaining < 300 && sec / dur < 0.9) {
+      pendingNavRef.current = doNavigateBack
+      setShowMarkWatchedPrompt(true)
+      setPlaying(false)
+    } else {
+      doNavigateBack()
+    }
+  }, [isEpisode, doNavigateBack])
+
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (showResumePrompt) return
+      if (showResumePrompt || showMarkWatchedPrompt) return
       switch (e.code) {
         case 'Space': e.preventDefault(); setPlaying((p) => !p); break
         case 'ArrowRight':
@@ -368,17 +388,15 @@ export default function PlayerScreen() {
             setShowSpeedMenu(false); setShowSubMenu(false); setShowAudioMenu(false)
           } else if (document.fullscreenElement) {
             document.exitFullscreen()
-          } else if (isEpisode && showId) {
-            navigate('/shows', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
           } else {
-            navigate(-1)
+            tryExit()
           }
           break
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [showResumePrompt, skip, showSpeedMenu, showSubMenu, showAudioMenu])
+  }, [showResumePrompt, showMarkWatchedPrompt, skip, showSpeedMenu, showSubMenu, showAudioMenu, tryExit])
 
   const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -404,6 +422,21 @@ export default function PlayerScreen() {
     setPlaying(false)
     if (path) window.api.deleteBookmark(path)
     if (isEpisode && path) window.api.markWatched(path, true)
+  }
+
+  const handleMarkWatchedYes = () => {
+    if (path) window.api.markWatched(path, true)
+    const nav = pendingNavRef.current
+    pendingNavRef.current = null
+    setShowMarkWatchedPrompt(false)
+    nav?.()
+  }
+
+  const handleMarkWatchedNo = () => {
+    const nav = pendingNavRef.current
+    pendingNavRef.current = null
+    setShowMarkWatchedPrompt(false)
+    nav?.()
   }
 
   const selectSubtitle = (idx: number) => {
@@ -586,8 +619,7 @@ export default function PlayerScreen() {
           style={{ opacity: controlsVisible ? 1 : 0, transition: 'opacity 0.3s' }}
           onClick={(e) => {
             e.stopPropagation()
-            if (isEpisode && showId) navigate('/shows', { state: { selectedShow: showId, selectedSeason: seasonNumber } })
-            else navigate(-1)
+            tryExit()
           }}
         >
           ← Back
@@ -600,6 +632,17 @@ export default function PlayerScreen() {
             <div className="resume-actions">
               <button className="btn btn-ghost" onClick={handleResumeNo}>Start Over</button>
               <button className="btn btn-primary" onClick={handleResumeYes}>▶ Resume</button>
+            </div>
+          </div>
+        )}
+
+        {showMarkWatchedPrompt && (
+          <div className="resume-prompt" onClick={(e) => e.stopPropagation()}>
+            <h3>Mark as Watched?</h3>
+            <p>Less than 5 minutes remain — mark this episode as watched?</p>
+            <div className="resume-actions">
+              <button className="btn btn-ghost" onClick={handleMarkWatchedNo}>Not Yet</button>
+              <button className="btn btn-primary" onClick={handleMarkWatchedYes}>Mark Watched</button>
             </div>
           </div>
         )}

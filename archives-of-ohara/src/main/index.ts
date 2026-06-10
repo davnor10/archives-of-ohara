@@ -258,7 +258,7 @@ app.whenReady().then(async () => {
   })
   ipcMain.on('window-close', () => BrowserWindow.getFocusedWindow()?.close())
   ipcMain.on('set-zoom', (_e, factor: number) => {
-    BrowserWindow.getFocusedWindow()?.webContents.setZoomFactor(factor)
+    _e.sender.setZoomFactor(factor)
   })
 
   // Kept for API compatibility (no longer used for video src)

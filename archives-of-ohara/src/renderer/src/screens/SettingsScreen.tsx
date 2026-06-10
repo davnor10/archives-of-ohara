@@ -29,7 +29,6 @@ export default function SettingsScreen() {
   const [showPaths, setShowPaths] = useState<string[]>([])
   const [moviePaths, setMoviePaths] = useState<string[]>([])
   const [tmdbKey, setTmdbKey] = useState('')
-  const [saved, setSaved] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [tagError, setTagError] = useState('')
   const [orphans, setOrphans] = useState<OrphanEntry[] | null>(null)
@@ -75,24 +74,27 @@ export default function SettingsScreen() {
   const addFolder = async (type: 'show' | 'movie') => {
     const folder = await window.api.selectFolder()
     if (!folder) return
-    if (type === 'show') setShowPaths((p) => [...new Set([...p, folder])])
-    else setMoviePaths((p) => [...new Set([...p, folder])])
+    if (type === 'show') {
+      const newPaths = [...new Set([...showPaths, folder])]
+      setShowPaths(newPaths)
+      saveSettings({ show_paths: newPaths })
+    } else {
+      const newPaths = [...new Set([...moviePaths, folder])]
+      setMoviePaths(newPaths)
+      saveSettings({ movie_paths: newPaths })
+    }
   }
 
   const removePath = (type: 'show' | 'movie', path: string) => {
-    if (type === 'show') setShowPaths((p) => p.filter((x) => x !== path))
-    else setMoviePaths((p) => p.filter((x) => x !== path))
-  }
-
-  const handleSave = async () => {
-    await saveSettings({ show_paths: showPaths, movie_paths: moviePaths, tmdb_api_key: tmdbKey, theme: selectedTheme, auto_bookmark: autoBookmark, auto_subtitle: autoSubtitle, subtitle_size: subtitleSize, subtitle_color: subtitleColor, subtitle_bg: subtitleBg, ui_scale: uiScale })
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2500)
-  }
-
-  const handleScanAndSave = async () => {
-    await handleSave()
-    await scanMedia()
+    if (type === 'show') {
+      const newPaths = showPaths.filter((x) => x !== path)
+      setShowPaths(newPaths)
+      saveSettings({ show_paths: newPaths })
+    } else {
+      const newPaths = moviePaths.filter((x) => x !== path)
+      setMoviePaths(newPaths)
+      saveSettings({ movie_paths: newPaths })
+    }
   }
 
   const handleAddTag = async () => {
@@ -176,6 +178,7 @@ export default function SettingsScreen() {
           placeholder="Enter your TMDB API key…"
           value={tmdbKey}
           onChange={(e) => setTmdbKey(e.target.value)}
+          onBlur={(e) => saveSettings({ tmdb_api_key: e.target.value })}
         />
         <div style={{ color: 'var(--text-dim)', fontSize: 11, marginTop: 6 }}>
           Get a free key at themoviedb.org - used to fetch posters and metadata.
@@ -242,6 +245,7 @@ export default function SettingsScreen() {
                   onClick={() => {
                     setSelectedTheme(t.id)
                     document.documentElement.setAttribute('data-theme', t.id)
+                    saveSettings({ theme: t.id })
                   }}
                   title={t.name}
                   style={{
@@ -286,6 +290,7 @@ export default function SettingsScreen() {
               const v = parseFloat(e.target.value)
               setUiScale(v)
               window.api.setZoom(v)
+              saveSettings({ ui_scale: v })
             }}
             style={{
               background: `linear-gradient(to right, var(--teal-light) 0%, var(--teal-light) ${((uiScale - 0.75) / 1.75) * 100}%, rgba(255,255,255,0.15) ${((uiScale - 0.75) / 1.75) * 100}%, rgba(255,255,255,0.15) 100%)`,
@@ -313,7 +318,7 @@ export default function SettingsScreen() {
             <input
               type="checkbox"
               checked={autoBookmark}
-              onChange={(e) => setAutoBookmark(e.target.checked)}
+              onChange={(e) => { setAutoBookmark(e.target.checked); saveSettings({ auto_bookmark: e.target.checked }) }}
               style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
             />
             Auto-bookmark on exit
@@ -335,7 +340,7 @@ export default function SettingsScreen() {
             <input
               type="checkbox"
               checked={autoSubtitle}
-              onChange={(e) => setAutoSubtitle(e.target.checked)}
+              onChange={(e) => { setAutoSubtitle(e.target.checked); saveSettings({ auto_subtitle: e.target.checked }) }}
               style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
             />
             Auto-play subtitles
@@ -358,7 +363,7 @@ export default function SettingsScreen() {
               <button
                 key={value}
                 className={`btn ${subtitleSize === value ? 'btn-primary' : 'btn-ghost'}`}
-                onClick={() => setSubtitleSize(value)}
+                onClick={() => { setSubtitleSize(value); saveSettings({ subtitle_size: value }) }}
               >
                 {label}
               </button>
@@ -378,7 +383,7 @@ export default function SettingsScreen() {
               <button
                 key={value}
                 title={label}
-                onClick={() => setSubtitleColor(value)}
+                onClick={() => { setSubtitleColor(value); saveSettings({ subtitle_color: value }) }}
                 style={{
                   width: 32, height: 32,
                   borderRadius: '50%',
@@ -397,7 +402,7 @@ export default function SettingsScreen() {
             <input
               type="checkbox"
               checked={subtitleBg}
-              onChange={(e) => setSubtitleBg(e.target.checked)}
+              onChange={(e) => { setSubtitleBg(e.target.checked); saveSettings({ subtitle_bg: e.target.checked }) }}
               style={{ width: 16, height: 16, accentColor: 'var(--accent)' }}
             />
             Background box
@@ -454,13 +459,10 @@ export default function SettingsScreen() {
         )}
       </div>
 
-      {/* Save / Scan / TMDB buttons */}
+      {/* Scan / TMDB buttons */}
       <div style={{ display: 'flex', gap: 12, marginTop: 4, flexWrap: 'wrap' }}>
-        <button className="btn btn-primary" onClick={handleSave}>
-          {saved ? '✓ Saved' : 'Save Settings'}
-        </button>
-        <button className="btn btn-ghost" onClick={handleScanAndSave} disabled={isScanning || isFetchingTmdb}>
-          ⟳ Save & Scan Library
+        <button className="btn btn-primary" onClick={() => scanMedia()} disabled={isScanning || isFetchingTmdb}>
+          ⟳ Scan Library
         </button>
         <button
           className="btn btn-ghost"
