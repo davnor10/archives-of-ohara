@@ -158,7 +158,7 @@ app.whenReady().then(async () => {
       const startSec = parseFloat(urlObj.searchParams.get('startSec') ?? '0') || 0
 
       if (!filePath || !existsSync(filePath)) {
-        console.warn('[media] File not found:', filePath || '(no path in request)')
+        console.warn('[media] Not found (drive disconnected or file moved):', filePath ? basename(filePath) : '(no path)')
         return new Response('Not Found', { status: 404 })
       }
 
@@ -192,7 +192,8 @@ app.whenReady().then(async () => {
             proc.on('close', (code) => {
               if (code !== 0 && code !== null && stdoutBytes < 65536) {
                 const detail = Buffer.concat(stderrBuf).toString('utf-8').trim()
-                console.error('[ffmpeg] Transcode failed (code', code, ', output', stdoutBytes, 'bytes):', filePath, '\n', detail)
+                const lastLine = detail.split('\n').filter(Boolean).pop() ?? detail
+                console.error(`[ffmpeg] Transcode failed (code ${code}) for ${basename(filePath)}: ${lastLine}`)
                 BrowserWindow.getAllWindows()[0]?.webContents.send('transcode-error', detail || `ffmpeg exited with code ${code}`)
               }
             })
@@ -244,7 +245,7 @@ app.whenReady().then(async () => {
         },
       })
     } catch (err) {
-      console.error('[media] Unhandled error serving request:', err)
+      console.error('[media] Unhandled error serving request:', err instanceof Error ? err.message : String(err))
       return new Response(String(err), { status: 500 })
     }
   })

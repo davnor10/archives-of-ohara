@@ -8,6 +8,7 @@ interface PlayerState {
   title: string
   year?: number
   isEpisode?: boolean
+  watched?: boolean
   durationSeconds?: number
   showId?: number
   seasonNumber?: number
@@ -22,6 +23,9 @@ interface VttCue {
 
 const PRESET_SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2]
 const HIDE_DELAY = 3000
+// Grace period before declaring a file genuinely missing — a slow-to-mount
+// storage device can look identical to a deleted file for the first few seconds.
+const NOT_FOUND_RETRY_DELAYS_MS = [1000, 2000, 3000]
 
 function formatTime(sec: number): string {
   if (!isFinite(sec) || isNaN(sec)) return '0:00'
@@ -68,8 +72,8 @@ export default function PlayerScreen() {
   const location = useLocation()
   const navigate = useNavigate()
   const state = location.state as PlayerState | null
-  const { path, title, isEpisode, durationSeconds, showId, seasonNumber, autoSubtitleOverride } = state ?? { path: '', title: '' }
-  const { settings, saveSettings, updateLastWatched, loadBookmarks } = useStore()
+  const { path, title, isEpisode, watched: initialWatched, durationSeconds, showId, seasonNumber, autoSubtitleOverride } = state ?? { path: '', title: '' }
+  const { settings, saveSettings, updateLastWatched, loadBookmarks, setEpisodeWatched } = useStore()
   const lastWatchedCalledRef = useRef(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -114,6 +118,7 @@ export default function PlayerScreen() {
   const pendingNavRef = useRef<(() => void) | null>(null)
   const [showMarkWatchedPrompt, setShowMarkWatchedPrompt] = useState(false)
   const lastSeekTimeRef = useRef(0)
+  const notFoundCheckIdRef = useRef(0)
   const lockControlsRef = useRef(false)
   const audioCtxRef = useRef<AudioContext | null>(null)
   const gainNodeRef = useRef<GainNode | null>(null)
@@ -122,6 +127,7 @@ export default function PlayerScreen() {
   const durationRef = useRef(durationSeconds ?? 0)
   const seekOffsetRef = useRef(0)
   const autoBookmarkRef = useRef(settings.auto_bookmark)
+  const playingRef = useRef(false)
   const autoSubDoneRef = useRef(false)
 
   const src = mediaUrl(path, activeAudioIdx, isTranscoded ? seekOffset : 0)
@@ -162,6 +168,7 @@ export default function PlayerScreen() {
   useEffect(() => { durationRef.current = duration }, [duration])
   useEffect(() => { seekOffsetRef.current = seekOffset }, [seekOffset])
   useEffect(() => { autoBookmarkRef.current = settings.auto_bookmark }, [settings.auto_bookmark])
+  useEffect(() => { playingRef.current = playing }, [playing])
 
   // ── Load bookmark ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -179,6 +186,7 @@ export default function PlayerScreen() {
     if (!path) return
     endedRef.current = false
     seekingRef.current = false
+    notFoundCheckIdRef.current++ // invalidate any in-flight "not found" retry checks from the previous path
     setSeekOffset(0)
     window.api.getDuration(path).then((dur) => { if (dur > 0) setDuration(dur) })
     window.api.needsTranscode(path, 0).then(setIsTranscoded)
@@ -250,28 +258,27 @@ export default function PlayerScreen() {
   useEffect(() => {
     if (!path || settings.auto_bookmark === false) return
     const interval = setInterval(() => {
-      if (playing && duration > 0) {
-        const sec = seekOffset + (videoRef.current?.currentTime ?? played * duration)
+      const dur = durationRef.current
+      if (playingRef.current && dur > 0) {
+        const video = videoRef.current
+        const sec = video ? seekOffsetRef.current + video.currentTime : playedRef.current * dur
         // Skip first 10% to avoid spamming bookmarks at the start of an episode
-        if (sec > 5 && sec / duration >= 0.1) window.api.saveBookmark(path, sec)
+        if (sec > 5 && sec / dur >= 0.1) window.api.saveBookmark(path, sec)
       }
     }, 10000)
     return () => clearInterval(interval)
-  }, [playing, played, duration, path, settings.auto_bookmark])
+  }, [path, settings.auto_bookmark])
 
   // ── Save bookmark on exit ─────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       const video = videoRef.current
       const dur = durationRef.current
-      const sec = seekOffsetRef.current + (video?.currentTime ?? playedRef.current * dur)
-      if (autoBookmarkRef.current !== false && path) {
+      const sec = video ? seekOffsetRef.current + video.currentTime : playedRef.current * dur
+      // Skip if the episode was just confirmed watched — that path already clears the bookmark
+      if (autoBookmarkRef.current !== false && path && !endedRef.current) {
         // Skip first 10%; manual 🔖 still saves anywhere
         if (dur > 0 && sec > 5 && sec / dur >= 0.1) window.api.saveBookmark(path, sec)
-      }
-      // Mark as watched if exiting in the last 10% (skipping credits counts)
-      if (isEpisode && path && !endedRef.current && dur > 0 && sec / dur >= 0.9) {
-        window.api.markWatched(path, true)
       }
       loadBookmarks()
       // Clean up WebAudio context if it was lazily created
@@ -356,16 +363,17 @@ export default function PlayerScreen() {
 
   const tryExit = useCallback(() => {
     const dur = durationRef.current
-    const sec = seekOffsetRef.current + (videoRef.current?.currentTime ?? playedRef.current * dur)
+    const video = videoRef.current
+    const sec = video ? seekOffsetRef.current + video.currentTime : playedRef.current * dur
     const remaining = dur - sec
-    if (isEpisode && !endedRef.current && dur > 0 && remaining < 300 && sec / dur < 0.9) {
+    if (isEpisode && !initialWatched && !endedRef.current && dur > 0 && (remaining < 300 || sec / dur >= 0.75)) {
       pendingNavRef.current = doNavigateBack
       setShowMarkWatchedPrompt(true)
       setPlaying(false)
     } else {
       doNavigateBack()
     }
-  }, [isEpisode, doNavigateBack])
+  }, [isEpisode, initialWatched, doNavigateBack])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
   useEffect(() => {
@@ -421,11 +429,19 @@ export default function PlayerScreen() {
     endedRef.current = true
     setPlaying(false)
     if (path) window.api.deleteBookmark(path)
-    if (isEpisode && path) window.api.markWatched(path, true)
+    if (isEpisode && path) {
+      window.api.markWatched(path, true)
+      if (showId != null) setEpisodeWatched(showId, path, true)
+    }
   }
 
   const handleMarkWatchedYes = () => {
-    if (path) window.api.markWatched(path, true)
+    if (path) {
+      window.api.markWatched(path, true)
+      window.api.deleteBookmark(path)
+      if (showId != null) setEpisodeWatched(showId, path, true)
+    }
+    endedRef.current = true // treat as handled — skip the exit-cleanup's bookmark save
     const nav = pendingNavRef.current
     pendingNavRef.current = null
     setShowMarkWatchedPrompt(false)
@@ -545,12 +561,25 @@ export default function PlayerScreen() {
             seekingRef.current = false
             setShowFrozenFrame(false)
             if (code === 2) {
-              // Fire-and-forget: check if file is missing and update the message
-              window.api.fileExists(path).then((exists) => {
-                setVideoError(exists
-                  ? `NETWORK: ${msg}`
-                  : `File not found - it may have been moved or deleted.\n\n${path}`)
-              })
+              // The file may simply not be reachable yet (e.g. an external drive still
+              // mounting), so retry the existence check a few times before giving up —
+              // avoids flashing an error for what is really just a slow drive.
+              const checkId = ++notFoundCheckIdRef.current
+              const check = (attempt: number): void => {
+                window.api.fileExists(path).then((exists) => {
+                  if (checkId !== notFoundCheckIdRef.current) return // path changed or a newer check superseded this one
+                  if (exists) {
+                    setVideoError(`NETWORK: ${msg}`)
+                    return
+                  }
+                  if (attempt < NOT_FOUND_RETRY_DELAYS_MS.length) {
+                    setTimeout(() => check(attempt + 1), NOT_FOUND_RETRY_DELAYS_MS[attempt])
+                    return
+                  }
+                  setVideoError(`Content not found.\n\nCheck that your storage device is connected, then try again.\n\n${path}`)
+                })
+              }
+              check(0)
               return
             }
             const labels: Record<number, string> = { 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED' }
@@ -639,7 +668,7 @@ export default function PlayerScreen() {
         {showMarkWatchedPrompt && (
           <div className="resume-prompt" onClick={(e) => e.stopPropagation()}>
             <h3>Mark as Watched?</h3>
-            <p>Less than 5 minutes remain — mark this episode as watched?</p>
+            <p>You're near the end — mark this episode as watched?</p>
             <div className="resume-actions">
               <button className="btn btn-ghost" onClick={handleMarkWatchedNo}>Not Yet</button>
               <button className="btn btn-primary" onClick={handleMarkWatchedYes}>Mark Watched</button>

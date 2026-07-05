@@ -132,6 +132,7 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
       state: {
         path: ep.path,
         isEpisode: true,
+        watched: Boolean(ep.watched),
         durationSeconds: ep.duration_seconds || localDurations[ep.path],
         showId: show.id,
         seasonNumber: ep.season,
