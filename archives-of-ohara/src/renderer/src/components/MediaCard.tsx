@@ -63,7 +63,21 @@ function MediaCard({ item, hasBookmark, onRemoveBookmark, nextEpisode, onClick }
 
   return (
     <>
-      <div ref={cardRef} className="media-card" onClick={onClick} title={item.title_override ?? item.title}>
+      <div
+        ref={cardRef}
+        className="media-card"
+        onClick={onClick}
+        title={item.title_override ?? item.title}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick()
+          }
+        }}
+      >
         {item.poster_base64 ? (
           <img className="media-card-poster" src={item.poster_base64} alt={item.title_override ?? item.title} loading="lazy" />
         ) : (

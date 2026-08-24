@@ -88,6 +88,7 @@ export interface AppSettings {
   subtitle_sync_step?: number
   ui_scale?: number
   has_seen_welcome?: boolean
+  default_launch_screen?: 'shows' | 'movies'
 }
 
 export interface OharaAPI {

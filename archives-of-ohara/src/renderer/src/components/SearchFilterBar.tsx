@@ -55,6 +55,15 @@ export default function SearchFilterBar({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    if (!showTagMenu) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowTagMenu(false)
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [showTagMenu])
+
   const toggleTag = (tagId: number) => {
     onTagsChange(
       activeTags.includes(tagId)
@@ -68,6 +77,20 @@ export default function SearchFilterBar({
 
   return (
     <div className="search-filter-bar">
+      <svg className="search-rope" viewBox="0 0 800 44" preserveAspectRatio="none" aria-hidden="true">
+        <path className="rope-shadow" d="M0,22 C33,4 67,4 100,22 C133,40 167,40 200,22 C233,4 267,4 300,22 C333,40 367,40 400,22 C433,4 467,4 500,22 C533,40 567,40 600,22 C633,4 667,4 700,22 C733,40 767,40 800,22" />
+        <path className="rope-strand" d="M0,22 C33,4 67,4 100,22 C133,40 167,40 200,22 C233,4 267,4 300,22 C333,40 367,40 400,22 C433,4 467,4 500,22 C533,40 567,40 600,22 C633,4 667,4 700,22 C733,40 767,40 800,22" />
+        <path className="rope-twist" d="M0,22 C33,4 67,4 100,22 C133,40 167,40 200,22 C233,4 267,4 300,22 C333,40 367,40 400,22 C433,4 467,4 500,22 C533,40 567,40 600,22 C633,4 667,4 700,22 C733,40 767,40 800,22" />
+      </svg>
+      <svg className="search-anchor" viewBox="0 0 26 32" aria-hidden="true">
+        <circle cx="13" cy="5" r="3.6" />
+        <line x1="13" y1="8.6" x2="13" y2="29" />
+        <line x1="6" y1="12" x2="20" y2="12" />
+        <path d="M4,17 C4,24.5 8,29 13,29 C18,29 22,24.5 22,17" />
+        <path d="M4,17 L8.5,17 L5,21.5 Z" />
+        <path d="M22,17 L17.5,17 L21,21.5 Z" />
+      </svg>
+
       <div className="search-input-wrap">
         <span className="search-icon">⎈</span>
         <input

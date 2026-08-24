@@ -98,6 +98,7 @@ export default function PlayerScreen() {
 
   const [subtitles, setSubtitles] = useState<SubtitleFile[]>([])
   const [activeSubIdx, setActiveSubIdx] = useState(-1) // -1 = off
+  const lastSubIdxRef = useRef(-1) // remembers last non-off track for the C toggle shortcut
   const [showSubMenu, setShowSubMenu] = useState(false)
   const [activeCues, setActiveCues] = useState<VttCue[]>([])
   const [currentCueText, setCurrentCueText] = useState<string | null>(null)
@@ -221,6 +222,10 @@ export default function PlayerScreen() {
     setActiveCues(sub?.vttContent ? parseVttCues(sub.vttContent) : [])
     setCurrentCueText(null)
   }, [activeSubIdx, subtitles])
+
+  useEffect(() => {
+    if (activeSubIdx !== -1) lastSubIdxRef.current = activeSubIdx
+  }, [activeSubIdx])
 
   // ── Embedded subtitle: extract and inject on first activation ──────────────
   const activateEmbeddedSub = useCallback(async (subIdx: number) => {
@@ -375,37 +380,6 @@ export default function PlayerScreen() {
     }
   }, [isEpisode, initialWatched, doNavigateBack])
 
-  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (showResumePrompt || showMarkWatchedPrompt) return
-      switch (e.code) {
-        case 'Space': e.preventDefault(); setPlaying((p) => !p); break
-        case 'ArrowRight':
-          e.preventDefault()
-          skip(10)
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          skip(-10)
-          break
-        case 'KeyF': toggleFullscreen(); break
-        case 'KeyM': setMuted((m) => !m); break
-        case 'Escape':
-          if (showSpeedMenu || showSubMenu || showAudioMenu) {
-            setShowSpeedMenu(false); setShowSubMenu(false); setShowAudioMenu(false)
-          } else if (document.fullscreenElement) {
-            document.exitFullscreen()
-          } else {
-            tryExit()
-          }
-          break
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [showResumePrompt, showMarkWatchedPrompt, skip, showSpeedMenu, showSubMenu, showAudioMenu, tryExit])
-
   const handleSeekClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
@@ -486,6 +460,60 @@ export default function PlayerScreen() {
     window.api.needsTranscode(path, idx).then(setIsTranscoded)
   }
 
+  // ── Keyboard shortcuts ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (showResumePrompt || showMarkWatchedPrompt) return
+      const targetTag = (e.target as HTMLElement)?.tagName
+      if (targetTag === 'INPUT' || targetTag === 'TEXTAREA') return
+      switch (e.code) {
+        case 'Space': e.preventDefault(); setPlaying((p) => !p); break
+        case 'ArrowRight':
+          e.preventDefault()
+          skip(10)
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          skip(-10)
+          break
+        case 'KeyF': toggleFullscreen(); break
+        case 'KeyM': setMuted((m) => !m); break
+        case 'KeyL':
+          // Language — cycle audio tracks
+          if (audioStreams.length > 1) selectAudio((activeAudioIdx + 1) % audioStreams.length)
+          break
+        case 'KeyS':
+          // Subtitles — cycle through Off / each available track
+          if (subtitles.length > 0) {
+            const next = activeSubIdx + 1 >= subtitles.length ? -1 : activeSubIdx + 1
+            if (next === -1) setActiveSubIdx(-1)
+            else selectSubtitle(next)
+          }
+          break
+        case 'KeyC':
+          // Subtitles — quick on/off toggle, remembering the last track used
+          if (activeSubIdx !== -1) {
+            setActiveSubIdx(-1)
+          } else if (subtitles.length > 0) {
+            const idx = lastSubIdxRef.current >= 0 && lastSubIdxRef.current < subtitles.length ? lastSubIdxRef.current : 0
+            selectSubtitle(idx)
+          }
+          break
+        case 'Escape':
+          if (showSpeedMenu || showSubMenu || showAudioMenu) {
+            setShowSpeedMenu(false); setShowSubMenu(false); setShowAudioMenu(false)
+          } else if (document.fullscreenElement) {
+            document.exitFullscreen()
+          } else {
+            tryExit()
+          }
+          break
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [showResumePrompt, showMarkWatchedPrompt, skip, showSpeedMenu, showSubMenu, showAudioMenu, tryExit, audioStreams, activeAudioIdx, subtitles, activeSubIdx, selectAudio, selectSubtitle])
+
   if (!path) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-dim)' }}>
@@ -503,6 +531,7 @@ export default function PlayerScreen() {
       className="player-screen"
       ref={containerRef}
       onMouseMove={showControls}
+      onFocus={showControls}
       onClick={(e) => {
         if ((e.target as HTMLElement).closest('.player-controls')) return
         if ((e.target as HTMLElement).closest('.player-back-btn')) return
@@ -686,7 +715,21 @@ export default function PlayerScreen() {
           className={`player-controls ${controlsVisible ? '' : 'hidden'}`}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="seek-bar-wrap" onClick={handleSeekClick}>
+          <div
+            className="seek-bar-wrap"
+            onClick={handleSeekClick}
+            role="slider"
+            tabIndex={0}
+            aria-label="Seek"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration)}
+            aria-valuenow={Math.round(played * duration)}
+            aria-valuetext={`${formatTime(played * duration)} of ${formatTime(duration)}`}
+            onKeyDown={(e) => {
+              if (e.key === 'Home') { e.preventDefault(); seekTo(0) }
+              else if (e.key === 'End') { e.preventDefault(); seekTo(duration) }
+            }}
+          >
             <div className="seek-bar-track">
               <div className="seek-bar-fill" style={{ width: `${played * 100}%` }} />
               {bookmarkFrac != null && (

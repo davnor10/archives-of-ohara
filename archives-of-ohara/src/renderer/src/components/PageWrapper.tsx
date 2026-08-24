@@ -14,7 +14,7 @@ export default function PageWrapper({ children }: { children: ReactNode }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      transition={{ duration: 0.15, ease: 'easeOut' }}
+      transition={{ duration: 0.15, ease: [0.23, 1, 0.32, 1] }}
       style={{ minHeight: '100%' }}
     >
       {children}

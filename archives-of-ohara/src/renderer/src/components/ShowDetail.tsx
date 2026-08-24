@@ -202,6 +202,14 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
             onClick={() => setPosterPickerOpen(true)}
             title="Change poster"
             style={{ cursor: 'pointer', position: 'relative' }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                setPosterPickerOpen(true)
+              }
+            }}
           >
             {show.poster_base64 ? (
               <img src={show.poster_base64} alt={show.title} />
@@ -344,7 +352,20 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                 const pct = seasonEps.length > 0 ? (sw / seasonEps.length) * 100 : 0
                 const allWatched = sw === seasonEps.length
                 return (
-                  <div key={season} className="season-card" onClick={() => setSelectedSeason(season)}>
+                  <div
+                    key={season}
+                    className="season-card"
+                    onClick={() => setSelectedSeason(season)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setSelectedSeason(season)
+                      }
+                    }}
+                  >
                     <div className="season-card-label">
                       Season {season}
                       {allWatched && <span className="season-card-done">✓</span>}
@@ -459,6 +480,15 @@ export default function ShowDetail({ show, onClose, initialSeason }: Props) {
                     key={ep.id}
                     className={`episode-row${ep.watched ? ' episode-watched' : ''}${isNextUp ? ' episode-next-up' : ''}`}
                     onClick={() => playEpisode(ep)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.target !== e.currentTarget) return
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        playEpisode(ep)
+                      }
+                    }}
                   >
                     <button
                       className={`ep-watch-toggle${ep.watched ? ' watched' : ''}`}

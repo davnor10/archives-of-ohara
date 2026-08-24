@@ -18,6 +18,7 @@ function AppRoutes() {
   const [sailType, setSailType] = useState<'movie' | 'show'>('show')
   const [updateInfo, setUpdateInfo] = useState<{ version: string; ready: boolean } | null>(null)
   const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const [settingsReady, setSettingsReady] = useState(false)
   const { loadTags, loadMediaTags, loadSettings, loadBookmarks, scanMedia, saveSettings, settings } = useStore()
 
   useEffect(() => {
@@ -28,6 +29,7 @@ function AppRoutes() {
       // Show welcome modal once for new users
       const s = useStore.getState().settings
       if (!s.has_seen_welcome) setWelcomeOpen(true)
+      setSettingsReady(true)
     })
     scanMedia()
   }, [])
@@ -61,6 +63,7 @@ function AppRoutes() {
   return (
     <>
       <div className="nautical-bg" />
+      <div className="nautical-bg-clover" />
 
       <div className="app-shell">
         <TitleBar onSetSail={handleSetSail} onHelp={() => setWelcomeOpen(true)} />
@@ -68,7 +71,10 @@ function AppRoutes() {
         <div className="page-content">
           <AnimatePresence mode="wait">
             <Routes location={location} key={location.pathname}>
-              <Route path="/" element={<Navigate to="/shows" replace />} />
+              <Route
+                path="/"
+                element={settingsReady ? <Navigate to={settings.default_launch_screen === 'movies' ? '/movies' : '/shows'} replace /> : null}
+              />
               <Route path="/shows" element={<SeriesScreen />} />
               <Route path="/movies" element={<MoviesScreen />} />
               <Route path="/player" element={<PlayerScreen />} />

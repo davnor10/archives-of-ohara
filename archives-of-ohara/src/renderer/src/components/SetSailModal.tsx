@@ -99,7 +99,7 @@ export default function SetSailModal({ open, onClose, type }: Props) {
               <motion.span
                 className="sail-wheel"
                 animate={{ rotate: rotation }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
+                transition={{ duration: 0.7, ease: [0.23, 1, 0.32, 1] }}
               >
                 ⚓
               </motion.span>
